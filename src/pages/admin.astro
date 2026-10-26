@@ -79,14 +79,14 @@ const specs = await Promise.all(
         <div class="imgfield" data-img="planche">
           <img alt="" hidden />
           <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir le scan</label>
-          <button class="btn ghost" type="button" data-remove hidden>Retirer</button>
+          <button class="btn ghost" type="button" data-remove hidden>Enlever l’image</button>
         </div>
         <label class="field"><span class="field-label">Description du dessin (pour les lecteurs d’écran)</span><textarea name="alt" rows="2" maxlength="400"></textarea></label>
         <span class="field-label">Signature <em>(facultatif)</em></span>
         <div class="imgfield small" data-img="signature">
           <img alt="" hidden />
           <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir la signature</label>
-          <button class="btn ghost" type="button" data-remove hidden>Retirer</button>
+          <button class="btn ghost" type="button" data-remove hidden>Enlever l’image</button>
         </div>
       </fieldset>
 
@@ -97,7 +97,7 @@ const specs = await Promise.all(
           <div class="imgfield" data-img="espece">
             <div class="annot-stage"><img alt="" hidden /><div data-markers></div></div>
             <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir le dessin de l’espèce</label>
-            <button class="btn ghost" type="button" data-remove hidden>Retirer</button>
+            <button class="btn ghost" type="button" data-remove hidden>Enlever l’image</button>
           </div>
           <label class="field"><span class="field-label">Description du dessin de l’espèce</span><textarea name="ficheAlt" rows="2" maxlength="400"></textarea></label>
           <label class="field"><span class="field-label">a. Habitat</span><textarea name="habitat" rows="2"></textarea></label>
@@ -113,7 +113,7 @@ const specs = await Promise.all(
       <p class="msg" data-form-msg hidden></p>
       <div class="row">
         <button class="btn" type="submit" data-save>Enregistrer</button>
-        <button class="btn danger" type="button" data-delete hidden>Retirer ce spécimen</button>
+        <button class="btn danger" type="button" data-delete hidden>Supprimer ce spécimen</button>
       </div>
     </form>
   </section>
@@ -168,7 +168,9 @@ const specs = await Promise.all(
   .annot-row .pos { font-family: var(--font-label); font-size: 11px; color: var(--ink-2); grid-column: 2 / -1; margin-top: -4px; }
   .admin-list { list-style: none; margin: 0; padding: 0; }
   .admin-list li + li { border-top: 1px solid var(--line); }
-  .admin-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 0; text-align: left; min-height: 44px; }
+  .admin-list li { display: flex; align-items: center; gap: 8px; }
+  .admin-item { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 12px 0; text-align: left; min-height: 44px; }
+  .admin-del { flex: none; min-height: 44px; padding: 0 4px; font-family: var(--font-label); font-size: 12px; color: var(--red); text-decoration: underline; text-underline-offset: 3px; }
   .admin-item .thumb { flex: none; width: 44px; aspect-ratio: 1 / 1.414; background: var(--placeholder); object-fit: cover; }
   .admin-item .t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .admin-item .badge { font-family: var(--font-label); font-size: 11px; color: var(--red); }
@@ -249,7 +251,10 @@ const specs = await Promise.all(
       meta.textContent = s.pending ? 'en cours d’observation' : `obs. le ${s.date}${s.img.planche ? '' : ' · sans image'}`;
       t.append(num, title, meta); b.append(thumb, t);
       b.addEventListener('click', () => openForm(s));
-      li.append(b); ol.append(li);
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'admin-del';
+      del.textContent = 'supprimer'; del.setAttribute('aria-label', `Supprimer le spécimen n°${s.n}`);
+      del.addEventListener('click', () => removeSpec(s, del, $('[data-flash]')));
+      li.append(b, del); ol.append(li);
     }
   }
   $('[data-new]').addEventListener('click', () => openForm(null));
@@ -423,15 +428,19 @@ const specs = await Promise.all(
     save.disabled = false;
   });
 
-  $('[data-delete]').addEventListener('click', async () => {
-    if (!editing || !confirm(`Retirer définitivement le spécimen n°${editing.n} « ${editing.title} » ?`)) return;
-    const btn = $<HTMLButtonElement>('[data-delete]'); btn.disabled = true;
+  // Supprimer : depuis la liste ou depuis le formulaire.
+  async function removeSpec(s: Spec, btn: HTMLButtonElement, msgEl: HTMLElement) {
+    if (!confirm(`Supprimer définitivement le spécimen n°${s.n} « ${s.title} » ? Ses images seront supprimées aussi.`)) return;
+    btn.disabled = true;
     try {
-      await api({ action: 'delete', folder: editing.folder });
-      specs = specs.filter((s) => s.folder !== editing!.folder);
-      flash(`Spécimen n°${editing.n} retiré. Le site sera à jour d’ici une minute environ.`);
-    } catch (err) { setMsg($('[data-form-msg]'), (err as Error).message); }
+      await api({ action: 'delete', folder: s.folder });
+      specs = specs.filter((x) => x.folder !== s.folder);
+      flash(`Spécimen n°${s.n} supprimé. Le site sera à jour d’ici une minute environ.`);
+    } catch (err) { setMsg(msgEl, (err as Error).message); }
     btn.disabled = false;
+  }
+  $('[data-delete]').addEventListener('click', (e) => {
+    if (editing) removeSpec(editing, e.currentTarget as HTMLButtonElement, $('[data-form-msg]'));
   });
 
   function flash(text: string) {

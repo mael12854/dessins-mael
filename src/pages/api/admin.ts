@@ -132,7 +132,7 @@ async function remove(body: any) {
   const files = await listDir(`${SPEC_DIR}/${body.folder}`);
   if (!files.length) throw new HttpError(404, 'Ce spécimen n’existe plus.');
   const changes: Change[] = files.filter((f) => f.type === 'file').map((f) => ({ path: f.path, delete: true }));
-  const sha = await commit(`Admin : retire le spécimen ${body.folder}`, changes);
+  const sha = await commit(`Admin : supprime le spécimen ${body.folder}`, changes);
   return { ok: true, commit: sha };
 }
 
