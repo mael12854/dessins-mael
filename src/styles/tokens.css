@@ -28,10 +28,12 @@
   color-scheme: light;
 }
 
-/* Mode nuit : les planches (--sheet) restent claires. */
-:root[data-theme='dark'] {
-  --bg: #1B1917; --ink: #F1ECE2; --ink-2: #B9B2A6; --line: #6A645B;
-  --label: #26231F; --red: #EC7A68; --blue: #93B2E8;
-  --placeholder: #23201D; --hatch-line: rgba(241, 236, 226, .07);
-  color-scheme: dark;
+/* Mode nuit : suit le réglage du système. Les planches (--sheet) restent claires. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1B1917; --ink: #F1ECE2; --ink-2: #B9B2A6; --line: #6A645B;
+    --label: #26231F; --red: #EC7A68; --blue: #93B2E8;
+    --placeholder: #23201D; --hatch-line: rgba(241, 236, 226, .07);
+    color-scheme: dark;
+  }
 }

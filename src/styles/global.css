@@ -59,15 +59,6 @@ main { flex: 1; display: flex; flex-direction: column; }
 }
 .nav-line { display: block; margin-top: 1px; color: var(--ink); opacity: .55; }
 .nav-link[aria-current='page'] .nav-line { color: var(--red); opacity: 1; }
-.theme-toggle {
-  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; min-height: 44px;
-  font-family: var(--font-label); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2);
-}
-.theme-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid currentColor; background: transparent; }
-:root[data-theme='dark'] .theme-dot { background: currentColor; }
-.theme-toggle .when-dark { display: none; }
-:root[data-theme='dark'] .theme-toggle .when-dark { display: inline; }
-:root[data-theme='dark'] .theme-toggle .when-light { display: none; }
 
 /* — Pied de page — */
 .site-footer { display: flex; flex-direction: column; gap: 4px; padding: 56px 20px 30px; font-family: var(--font-label); font-size: 11px; letter-spacing: .04em; color: var(--ink-2); }
@@ -84,7 +75,7 @@ main { flex: 1; display: flex; flex-direction: column; }
 .sheet.r11 { aspect-ratio: 1 / 1; }
 .sheet.hatch { background-color: var(--placeholder); background-image: repeating-linear-gradient(135deg, transparent 0 10px, var(--hatch-line) 10px 11px); }
 .sheet.thumb.hatch { background-image: repeating-linear-gradient(135deg, transparent 0 7px, var(--hatch-line) 7px 8px); }
-:root[data-theme='dark'] .sheet.hatch { box-shadow: none; }
+@media (prefers-color-scheme: dark) { .sheet.hatch { box-shadow: none; } }
 .sheet img { position: relative; width: 100%; height: 100%; object-fit: contain; animation: fade 150ms ease-out; }
 .sheet .loading {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -135,7 +126,7 @@ main { flex: 1; display: flex; flex-direction: column; }
   font-family: var(--font-label); font-size: 9px; line-height: 1.1; text-align: center; color: var(--ink-2);
 }
 .signature-img { flex: none; width: 92px; height: 34px; object-fit: contain; }
-:root[data-theme='dark'] .signature-img { filter: invert(1) hue-rotate(180deg); }
+@media (prefers-color-scheme: dark) { .signature-img { filter: invert(1) hue-rotate(180deg); } }
 
 /* — Précédent / suivant — */
 .prevnext { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 18px 20px 0; }

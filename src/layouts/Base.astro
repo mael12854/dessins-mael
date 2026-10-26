@@ -35,18 +35,11 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta property="og:description" content={desc} />
     <meta property="og:url" content={canonical} />
     <meta name="google-site-verification" content="s3pc8p1G-9SZ6fzlmzidcxkQnj3PspWIzmnsUIYNs2Y" />
-    <meta name="theme-color" content="#FAF7F0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#FAF7F0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1B1917" media="(prefers-color-scheme: dark)" />
     <title>{fullTitle}</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <script is:inline>
-      // Thème : choix mémorisé, sinon préférence du système. Avant le rendu pour éviter un flash.
-      (function () {
-        var t = null;
-        try { t = localStorage.getItem('theme'); } catch (e) {}
-        if (t !== 'dark' && t !== 'light') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        document.documentElement.dataset.theme = t;
-      })();
-    </script>
   </head>
   <body>
     <div class="page">
@@ -56,15 +49,5 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
       </main>
       <Footer />
     </div>
-    <script is:inline>
-      document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-          document.documentElement.dataset.theme = next;
-          try { localStorage.setItem('theme', next); } catch (e) {}
-          btn.setAttribute('aria-label', next === 'dark' ? 'Passer en mode jour' : 'Passer en mode nuit');
-        });
-      });
-    </script>
   </body>
 </html>
