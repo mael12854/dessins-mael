@@ -1,6 +1,6 @@
 // Panneau latéral : propriétés de l'élément sélectionné, ou calques.
 import type { Editor } from './editor';
-import { COLORS, FONTS, type BubbleItem, type FontKey, type Item, type LayerKey, type StrokeItem, type TextItem, baseSize, describe, layerOf } from './model';
+import { COLORS, FONTS, type BubbleItem, type FontKey, type Item, type LayerKey, type PatchItem, type StrokeItem, type TextItem, baseSize, describe, layerOf } from './model';
 
 type El = HTMLElement;
 const h = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, any> = {}, ...kids: (Node | string | null | undefined)[]) => {
@@ -49,6 +49,11 @@ export class Panel {
   tab: 'props' | 'layers' = 'layers';
   textArea: HTMLTextAreaElement | null = null;
 
+  /** Bouton « Lire toute la planche » de l'outil Lire l'écriture. */
+  onReadPage: () => void = () => {};
+  /** Lecture disponible (clé configurée côté serveur) ? null = inconnu. */
+  ocrReady: boolean | null = null;
+
   constructor(private root: El, private ed: Editor, private onTab: (t: 'props' | 'layers') => void) {}
 
   render() {
@@ -60,6 +65,7 @@ export class Panel {
         h('button', { type: 'button', role: 'tab', class: this.tab === 'layers' ? 'on' : '', 'aria-selected': String(this.tab === 'layers'), onclick: () => this.setTab('layers') }, 'Calques')),
       h('div', { class: 'panel-body' },
         this.ed.tool === 'marker' && !it ? this.markerSettings() : null,
+        this.ed.tool === 'ocr' && !it ? this.ocrSettings() : null,
         this.tab === 'props' && it ? this.props(it) : this.layers()),
     );
   }
@@ -71,6 +77,15 @@ export class Panel {
         h('input', { type: 'checkbox', checked: value === 'auto', onchange: (e: Event) => onPick((e.target as HTMLInputElement).checked ? 'auto' : '#FFFFFF') }),
         ' Couleur du papier (automatique)'),
       value === 'auto' ? null : colorPicker(value, onPick));
+  }
+
+  private ocrSettings(): El {
+    return h('div', { class: 'props marker-box' },
+      h('h3', { class: 'p-title' }, 'Lire l’écriture'),
+      h('p', { class: 'hint' }, 'Encadre un texte écrit à la main (glisse sur la planche) : il est lu, tu le vérifies, puis il est remplacé par du texte tapé dans une police du site. L’écriture d’origine est cachée par un rectangle couleur papier.'),
+      h('button', { type: 'button', class: 'btn ghost', 'data-read-page': true, disabled: this.ocrReady === false, onclick: () => this.onReadPage() }, 'Lire toute la planche'),
+      this.ocrReady === false ? h('p', { class: 'msg' }, 'Lecture non activée : la clé ANTHROPIC_API_KEY manque dans Vercel.') : null,
+    );
   }
 
   private markerSettings(): El {
@@ -97,7 +112,7 @@ export class Panel {
     const ed = this.ed;
     const set = (p: Partial<Item>) => ed.patch(it.id, p);
     const wrap = h('div', { class: 'props' });
-    const title = it.type === 'text' ? 'Texte' : it.type === 'arrow' ? 'Flèche' : it.type === 'stroke' ? 'Trait de feutre' : it.shape === 'thought' ? 'Bulle de pensée' : 'Bulle';
+    const title = it.type === 'text' ? 'Texte' : it.type === 'arrow' ? 'Flèche' : it.type === 'stroke' ? 'Trait de feutre' : it.type === 'patch' ? 'Cache' : it.shape === 'thought' ? 'Bulle de pensée' : 'Bulle';
     wrap.append(h('h3', { class: 'p-title' }, title));
 
     if (it.type === 'stroke') {
@@ -107,7 +122,14 @@ export class Panel {
       );
     }
 
-    if (it.type !== 'arrow' && it.type !== 'stroke') {
+    if (it.type === 'patch') {
+      wrap.append(
+        h('p', { class: 'hint' }, 'Rectangle qui cache l’écriture d’origine. Ajuste-le avec les poignées.'),
+        field('Couleur', this.strokeColorPicker(it.color, (v) => { set({ color: v } as Partial<PatchItem>); this.render(); })),
+      );
+    }
+
+    if (it.type !== 'arrow' && it.type !== 'stroke' && it.type !== 'patch') {
       const ta = h('textarea', { rows: 3, spellcheck: true, lang: 'fr', placeholder: 'Écris ici…' }) as HTMLTextAreaElement;
       ta.value = it.text;
       ta.addEventListener('input', () => { ed.patch(it.id, { text: ta.value }, false); ed.commitSoon(); });
@@ -195,7 +217,7 @@ export class Panel {
         items.length
           ? h('ol', { class: 'layer-items' }, ...items.map((x) => h('li', {},
               h('button', { type: 'button', class: sel?.id === x.id ? 'on' : '', disabled: L.locked || !L.visible, onclick: () => { ed.select(x.id); this.setTab('props'); } }, describe(x)))))
-          : h('p', { class: 'hint' }, key === 'texts' ? 'Outil « Texte », puis touche le dessin.' : key === 'masks' ? 'Outil « Feutre » : peins sur l’écriture à cacher.' : 'Outils « Bulle », « Pensée » ou « Flèche ».'),
+          : h('p', { class: 'hint' }, key === 'texts' ? 'Outil « Texte », puis touche le dessin.' : key === 'masks' ? 'Outil « Feutre » : peins sur l’écriture à cacher. « Lire l’écriture » y ajoute aussi ses caches.' : 'Outils « Bulle », « Pensée » ou « Flèche ».'),
       );
     };
     const draw = d.layers.drawing;

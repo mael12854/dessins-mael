@@ -2,6 +2,7 @@
 // raccourcis, export PNG et envoi vers le formulaire de publication de l'admin.
 import { Editor, type Tool, type View } from './editor';
 import { Panel } from './panel';
+import { setupOcr } from './ocr';
 import { FONTS, newDoc, uid, type Doc } from './model';
 import { cleanImageData } from '../lib/clean-paper';
 import {
@@ -25,12 +26,15 @@ const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeou
 
 // ————— Accès (même code que l'admin) —————
 let code = '';
+let ocrReady: boolean | null = null; // la lecture de l'écriture est-elle activée côté serveur ?
 try { code = sessionStorage.getItem('admin-code') || ''; } catch {}
 
 async function checkCode(c: string) {
   const res = await fetch('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-code': c }, body: JSON.stringify({ action: 'login' }) });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Erreur ${res.status}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
   code = c;
+  ocrReady = !!data.ocr;
   try { sessionStorage.setItem('admin-code', c); } catch {}
 }
 
@@ -45,6 +49,7 @@ $('[data-login]').addEventListener('submit', async (e) => {
 // ————— Éditeur —————
 let current: ProjectRecord | null = null;
 let originalInfo = '';
+let cleanCanvas: HTMLCanvasElement | null = null; // dessin nettoyé, pour la lecture de l'écriture
 const panelRoot = $('[data-panel]');
 const editor = new Editor($<HTMLDivElement>('[data-canvas]'), {
   change: (doc, committed) => {
@@ -58,18 +63,25 @@ const editor = new Editor($<HTMLDivElement>('[data-canvas]'), {
       text: 'Touche la planche à l’endroit du texte', 'bubble-oval': 'Touche la planche pour placer la bulle',
       'bubble-rect': 'Touche la planche pour placer la bulle', 'bubble-thought': 'Touche la planche pour placer la pensée',
       arrow: 'Touche la planche pour placer la flèche', marker: 'Peins sur l’écriture à cacher',
+      ocr: 'Encadre un texte écrit à la main',
     };
     const hint = $('[data-tool-hint]');
     hint.textContent = hints[t] ?? '';
     hint.hidden = !hints[t];
     panel.render();
-    if (t === 'marker' && matchMedia('(pointer: coarse)').matches) document.body.classList.remove('sheet-open');
+    if ((t === 'marker' || t === 'ocr') && matchMedia('(pointer: coarse)').matches) document.body.classList.remove('sheet-open');
   },
   zoom: (s) => { $('[data-zoom-label]').textContent = `${Math.round(s * 100)} %`; },
   history: (u, r) => { $<HTMLButtonElement>('[data-undo]').disabled = !u; $<HTMLButtonElement>('[data-redo]').disabled = !r; },
   editText: () => { openSheet(); panel.focusText(); },
+  ocrZone: (box) => {
+    if (ocrReady === false) { alert('La lecture de l’écriture n’est pas activée : ajoute la clé ANTHROPIC_API_KEY dans Vercel.'); editor.clearZone(); return; }
+    ocr.readZone(box);
+  },
 });
 const panel = new Panel(panelRoot, editor, () => openSheet());
+const ocr = setupOcr({ editor, canvas: () => cleanCanvas, code: () => code });
+panel.onReadPage = () => ocr.readPage();
 // Accès pour les tests automatisés, uniquement en développement (absent du site en ligne).
 if (import.meta.env.DEV) (window as any).__studio = { editor, panel };
 
@@ -107,7 +119,7 @@ const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isConte
 const textEntry = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || t.tagName === 'TEXTAREA' || (t instanceof HTMLInputElement && /^(text|search|password|email|url)$/.test(t.type)));
 window.addEventListener('keydown', (e) => {
-  if (screens.editor.hidden || $<HTMLDialogElement>('[data-publish-dialog]').open) return;
+  if (screens.editor.hidden || document.querySelector('dialog[open]')) return;
   const mod = e.ctrlKey || e.metaKey;
   const k = e.key.toLowerCase();
   if (mod && k === 'z' && !textEntry(e.target)) { e.preventDefault(); e.shiftKey ? editor.redo() : editor.undo(); return; }
@@ -130,7 +142,7 @@ window.addEventListener('keydown', (e) => {
     case '0': editor.fit(); break;
     case '1': editor.actualSize(); break;
     default: {
-      const tools: Record<string, Tool> = { v: 'select', t: 'text', b: 'bubble-oval', r: 'bubble-rect', p: 'bubble-thought', a: 'arrow', f: 'marker' };
+      const tools: Record<string, Tool> = { v: 'select', t: 'text', b: 'bubble-oval', r: 'bubble-rect', p: 'bubble-thought', a: 'arrow', f: 'marker', l: 'ocr' };
       if (tools[k]) editor.setTool(tools[k]);
     }
   }
@@ -220,6 +232,8 @@ async function openProject(rec: ProjectRecord) {
     if (!blob) throw new Error('Le fichier original de ce brouillon est introuvable sur cet appareil.');
     const [{ orig, clean, paper }] = await Promise.all([decode(blob, rec.width, rec.height), loadFonts()]);
     current = rec;
+    cleanCanvas = clean;
+    panel.ocrReady = ocrReady;
     nameInput.value = rec.name;
     originalInfo = `${(blob.size / 1e6).toFixed(1).replace('.', ',')} Mo`;
     show('editor');

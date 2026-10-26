@@ -78,9 +78,17 @@ export interface StrokeItem {
   color: 'auto' | string;
 }
 
-export type Item = TextItem | BubbleItem | ArrowItem | StrokeItem;
+/** Rectangle de cache (couleur du papier) posé sur une écriture remplacée. */
+export interface PatchItem {
+  id: string;
+  type: 'patch';
+  x: number; y: number; w: number; h: number;
+  color: 'auto' | string;
+}
+
+export type Item = TextItem | BubbleItem | ArrowItem | StrokeItem | PatchItem;
 export type LayerKey = 'drawing' | 'masks' | 'bubbles' | 'texts';
-export const layerOf = (it: Item): LayerKey => (it.type === 'text' ? 'texts' : it.type === 'stroke' ? 'masks' : 'bubbles');
+export const layerOf = (it: Item): LayerKey => (it.type === 'text' ? 'texts' : it.type === 'stroke' || it.type === 'patch' ? 'masks' : 'bubbles');
 
 export interface LayerState { visible: boolean; locked: boolean }
 export interface Doc {
@@ -147,6 +155,7 @@ export const fontStyle = (it: TextStyle) => `${it.italic ? 'italic ' : ''}${it.w
 
 export function describe(it: Item): string {
   if (it.type === 'arrow') return 'Flèche';
+  if (it.type === 'patch') return `Cache${it.color === 'auto' ? ' (couleur du papier)' : ''}`;
   if (it.type === 'stroke') return `Trait de feutre${it.color === 'auto' ? ' (couleur du papier)' : ''}`;
   const t = it.text.replace(/\s+/g, ' ').trim() || '(vide)';
   const short = t.length > 28 ? t.slice(0, 27) + '…' : t;

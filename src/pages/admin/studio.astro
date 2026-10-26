@@ -21,6 +21,7 @@ const tools = [
   { id: 'bubble-thought', label: 'Pensée', key: 'P', svg: icon('<path d="M7 15a4 4 0 0 1-1-7.8A5 5 0 0 1 15 5a4 4 0 0 1 3 7 3.5 3.5 0 0 1-4 3z"/><circle cx="7" cy="19" r="1.5"/><circle cx="4" cy="21.5" r=".8"/>') },
   { id: 'arrow', label: 'Flèche', key: 'A', svg: icon('<path d="M4 18c4-8 9-11 15-12M14 4l5 2-2 5"/>') },
   { id: 'marker', label: 'Feutre', key: 'F', svg: icon('<path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12 7l5 5"/><path d="M3 21h8" stroke-width="3"/>') },
+  { id: 'ocr', label: 'Lire l’écriture', key: 'L', svg: icon('<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 14c1-3 2-5 3-5s.5 5 1.5 5 1.5-3 3.5-3"/>') },
 ];
 ---
 <Base title="Studio" noindex bare>
@@ -124,6 +125,25 @@ const tools = [
           <button type="button" class="btn" data-send>Continuer vers la publication</button>
           <button type="button" class="btn ghost" data-dialog-download>Télécharger le PNG</button>
           <button type="button" class="btn ghost" data-dialog-close>Annuler</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="publish ocr" data-ocr-dialog>
+      <form method="dialog" class="publish-in">
+        <h2 class="hand title">Lire l’écriture</h2>
+        <p class="hint" data-ocr-status aria-live="polite"></p>
+        <div class="ocr-list" data-ocr-list></div>
+        <div class="grid2">
+          <label class="f"><span class="f-label">Police</span><select data-ocr-font></select></label>
+          <label class="f"><span class="f-label">Graisse</span><select data-ocr-weight></select></label>
+        </div>
+        <label class="check"><input type="checkbox" data-ocr-cover checked /> Cacher l’écriture d’origine (cache couleur papier)</label>
+        <p class="hint">Seul l’extrait encadré est envoyé au service de lecture (Claude). Tout reste modifiable et annulable.</p>
+        <div class="row">
+          <button type="button" class="btn" data-ocr-apply disabled>Remplacer</button>
+          <button type="button" class="btn ghost" data-ocr-retry>Relire</button>
+          <button type="button" class="btn ghost" data-ocr-cancel>Annuler</button>
         </div>
       </form>
     </dialog>
@@ -260,6 +280,12 @@ const tools = [
   .layer-items button.on { background: var(--ink); color: var(--bg); }
 
   .publish { border: 2px solid var(--ink); border-radius: 10px; padding: 0; width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); background: var(--bg); color: var(--ink); }
+  .ocr-list { display: flex; flex-direction: column; gap: 12px; max-height: 46vh; overflow: auto; }
+  .ocr .publish-in { gap: 10px; }
+  @media (max-width: 600px) { .ocr-list { max-height: 34dvh; } .ocr-crop { max-height: 90px; } }
+  .ocr-row { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--edge); }
+  .ocr-crop { align-self: flex-start; max-width: 100%; max-height: 140px; object-fit: contain; background: #fff; border-radius: 4px; box-shadow: var(--shadow-thumb); }
+  .ocr-row textarea { width: 100%; font: inherit; font-size: 16px; padding: 8px; border: 1.5px solid var(--ink); border-radius: 6px; background: var(--bg); color: var(--ink); resize: vertical; }
   .publish::backdrop { background: rgba(26, 24, 22, .55); }
   .publish-in { display: flex; flex-direction: column; gap: 12px; padding: 18px; }
   .publish-in .title { margin: 0; }

@@ -15,6 +15,7 @@ Variables d’environnement Vercel nécessaires :
 | --- | --- |
 | `ADMIN_PASSWORD` | code d’accès de `/admin` |
 | `GITHUB_TOKEN` | jeton GitHub *fine-grained*, limité à ce dépôt, permission **Contents : Read and write** |
+| `ANTHROPIC_API_KEY` | (facultatif) clé API Anthropic pour « Lire l’écriture » dans le Studio |
 | `GITHUB_REPO` | facultatif, `mael12854/dessins-mael` par défaut |
 | `GITHUB_BRANCH` | facultatif, `main` par défaut |
 
@@ -31,8 +32,9 @@ Après un changement de variable, redéployer le site (Vercel → Deployments �
 - **Export** : « PNG » télécharge l'image finale à la taille exacte du dessin.
 - **Publication** : « Publier… » montre l'aperçu, puis ouvre le formulaire de l'admin avec l'image (nouveau spécimen, ou planche / dessin de fiche d'un spécimen existant). Rien n'est publié avant « Enregistrer ». L'image part en PNG sans perte si elle tient dans la limite d'envoi de Vercel (~3 Mo) ; sinon en JPEG haute qualité, puis réduite si besoin (le message l'indique).
 - Depuis la fiche d'un spécimen dans l'admin, « Retoucher dans le Studio » rouvre le dessin publié.
+- **Lire l'écriture** (touche L) : on encadre un texte écrit à la main (ou « Lire toute la planche » dans le panneau). Le texte lu s'affiche, on le corrige si besoin, on choisit la police, puis « Remplacer » pose un cache couleur papier sur l'écriture et le texte tapé par-dessus, en une seule action annulable. La lecture est faite par Claude (Anthropic) côté serveur. Elle demande la variable `ANTHROPIC_API_KEY` dans Vercel ; sans elle, l'outil l'indique et rien n'est envoyé. Seul l'extrait encadré (ou la planche réduite) part au service, uniquement sur action de l'utilisateur.
 
-Raccourcis : V sélection, F feutre, T texte, B bulle, R bulle carrée, P pensée, A flèche, Suppr, Ctrl+Z / Ctrl+Maj+Z, Ctrl+D dupliquer, flèches pour déplacer, + / − / 0 / 1 pour le zoom, Entrée pour modifier le texte. Ils sont désactivés pendant la saisie.
+Raccourcis : V sélection, F feutre, L lire l'écriture, T texte, B bulle, R bulle carrée, P pensée, A flèche, Suppr, Ctrl+Z / Ctrl+Maj+Z, Ctrl+D dupliquer, flèches pour déplacer, + / − / 0 / 1 pour le zoom, Entrée pour modifier le texte. Ils sont désactivés pendant la saisie.
 
 ### À la main
 
