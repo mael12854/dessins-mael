@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://dessins-mael.vercel.app/sitemap-index.xml
+Sitemap: https://specimens-mael.vercel.app/sitemap-index.xml

@@ -3,7 +3,7 @@ import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
   // Adresse publique du site (sert au sitemap et aux liens canoniques).
-  site: 'https://dessins-mael.vercel.app',
+  site: 'https://specimens-mael.vercel.app',
   trailingSlash: 'ignore',
   integrations: [sitemap({ filter: (page) => !page.includes('/404') })],
   image: {
