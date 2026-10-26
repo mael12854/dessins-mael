@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { commit, createBlob, listDir, HttpError, type Change } from '../../lib/github';
+import { commit, createBlob, listDir, readText, HttpError, type Change } from '../../lib/github';
+import seriesData from '../../data/series.json';
 
 export const prerender = false;
 
@@ -57,7 +58,7 @@ function buildMarkdown(d: any, img: Record<ImgKey, string | null>): string {
 function validate(raw: any) {
   const d: any = {
     n: Number(raw?.n),
-    series: raw?.series === 'hs' ? 'hs' : 'metro',
+    series: typeof raw?.series === 'string' && /^[a-z0-9-]{1,40}$/.test(raw.series) ? raw.series : '',
     tech: ['feutre', 'numerique', 'mixte'].includes(raw?.tech) ? raw.tech : 'feutre',
     title: str(raw?.title, 120),
     latin: str(raw?.latin, 120),
@@ -67,12 +68,13 @@ function validate(raw: any) {
     texte: str(raw?.texte, 4000),
     pending: !!raw?.pending,
   };
+  if (!d.series) throw new HttpError(400, 'Série invalide.');
   if (!Number.isInteger(d.n) || d.n < 1 || d.n > 9999) throw new HttpError(400, 'Numéro invalide.');
   if (!d.title) throw new HttpError(400, 'Le titre est obligatoire.');
   if (!d.lieu) throw new HttpError(400, 'Le lieu est obligatoire.');
   if (d.pending && !d.date) d.date = '—';
   if (!/^(\d{2}\.\d{2}\.\d{4}|—)$/.test(d.date)) throw new HttpError(400, 'Date invalide (JJ.MM.AAAA).');
-  if (raw?.fiche && d.series === 'metro') {
+  if (raw?.fiche) {
     const f = raw.fiche;
     d.fiche = {
       alt: str(f.alt, 400),
@@ -129,6 +131,31 @@ async function save(body: any) {
   return { ok: true, folder, commit: sha };
 }
 
+async function saveSeries(body: any) {
+  const raw = Array.isArray(body.series) ? body.series : [];
+  if (!raw.length || raw.length > 30) throw new HttpError(400, 'Liste de séries invalide.');
+  const list = raw.map((x: any) => ({ id: String(x?.id ?? ''), label: str(x?.label, 60), fiche: !!x?.fiche }));
+  const ids = new Set<string>();
+  for (const x of list) {
+    if (!/^[a-z0-9-]{1,40}$/.test(x.id) || ids.has(x.id)) throw new HttpError(400, `Identifiant de série invalide : ${x.id}`);
+    if (!x.label) throw new HttpError(400, 'Chaque série doit avoir un nom.');
+    ids.add(x.id);
+  }
+  // Une série encore utilisée par un spécimen ne peut pas disparaître.
+  const current: { id: string }[] = JSON.parse((await readText('src/data/series.json')) ?? JSON.stringify(seriesData));
+  const removed = current.map((x) => x.id).filter((id) => !ids.has(id));
+  if (removed.length) {
+    const dirs = (await listDir(SPEC_DIR)).filter((e) => e.type === 'dir');
+    for (const dir of dirs) {
+      const md = await readText(`${SPEC_DIR}/${dir.name}/index.md`);
+      const used = md?.match(/^series:\s*"?([a-z0-9-]+)"?\s*$/m)?.[1];
+      if (used && removed.includes(used)) throw new HttpError(409, `La série « ${used} » contient encore le spécimen ${dir.name}.`);
+    }
+  }
+  const sha = await commit('Admin : met à jour les séries', [{ path: 'src/data/series.json', content: JSON.stringify(list, null, 2) + '\n' }]);
+  return { ok: true, commit: sha };
+}
+
 async function remove(body: any) {
   if (!folderOk(body.folder)) throw new HttpError(400, 'Dossier invalide.');
   const files = await listDir(`${SPEC_DIR}/${body.folder}`);
@@ -156,6 +183,8 @@ export const POST: APIRoute = async ({ request }) => {
       }
       case 'save':
         return json(200, await save(body));
+      case 'series':
+        return json(200, await saveSeries(body));
       case 'delete':
         return json(200, await remove(body));
       default:

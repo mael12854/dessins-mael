@@ -3,7 +3,7 @@ import Base from '../layouts/Base.astro';
 import { getCollection } from 'astro:content';
 import { getImage } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
-import { pad } from '../lib/specimens';
+import { pad, SERIES_LIST } from '../lib/specimens';
 
 // Spécimens publiés au moment du build (l'admin les relit pour les modifier).
 const preview = async (img?: ImageMetadata) => (img ? (await getImage({ src: img, width: 480, format: 'webp' })).src : null);
@@ -43,10 +43,27 @@ const specs = await Promise.all(
       <p class="msg ok" data-flash hidden></p>
       <div class="row">
         <button class="btn" type="button" data-new>+ Nouveau spécimen</button>
+        <button class="btn ghost" type="button" data-open-series>Séries</button>
         <button class="btn ghost" type="button" data-logout>Se déconnecter</button>
       </div>
       <ol class="admin-list" data-list></ol>
       <p class="meta" data-empty-list hidden>Aucun spécimen pour l’instant.</p>
+    </div>
+
+    <!-- Séries -->
+    <div class="admin-form" data-view="series" hidden>
+      <button class="hlink small" type="button" data-series-back>← retour à la liste</button>
+      <h2 class="hand title">Séries</h2>
+      <p class="meta" style="margin:0;">Dans l’ordre des filtres de « la collection ». Une série ne peut être supprimée que si aucun spécimen n’y est rangé.</p>
+      <ol class="series-list" data-series-list></ol>
+      <fieldset>
+        <legend class="label">Nouvelle série</legend>
+        <label class="field"><span class="field-label">Nom</span><input name="newSeries" maxlength="60" placeholder="Nom de la série" /></label>
+        <label class="check"><input type="checkbox" name="newSeriesFiche" /> Les spécimens ont une fiche espèce</label>
+        <button class="btn ghost" type="button" data-add-series>+ Ajouter la série</button>
+      </fieldset>
+      <p class="msg" data-series-msg hidden></p>
+      <div class="row"><button class="btn" type="button" data-save-series>Enregistrer les séries</button></div>
     </div>
 
     <!-- Formulaire -->
@@ -63,7 +80,7 @@ const specs = await Promise.all(
         <label class="field"><span class="field-label">Titre (nom de l’espèce)</span><input name="title" required maxlength="120" placeholder="La Dormeuse de terminus" /></label>
         <div class="grid2">
           <label class="field"><span class="field-label">Série</span>
-            <select name="series"><option value="metro">La vie des gens du métro</option><option value="hs">Hors-série</option></select>
+            <select name="series">{SERIES_LIST.map((x) => <option value={x.id}>{x.label}</option>)}</select>
           </label>
           <label class="field"><span class="field-label">Technique</span>
             <select name="tech"><option value="feutre">Feutre scanné</option><option value="numerique">Dessin numérique</option><option value="mixte">Feutre scanné, texte tapé</option></select>
@@ -120,6 +137,7 @@ const specs = await Promise.all(
   </section>
 
   <script type="application/json" id="specs-data" set:html={JSON.stringify(specs)} />
+  <script type="application/json" id="series-data" set:html={JSON.stringify(SERIES_LIST)} />
 </Base>
 
 <style is:global>
@@ -177,6 +195,14 @@ const specs = await Promise.all(
   @media (prefers-color-scheme: dark) {
     .imgfield img, .admin-item img.thumb { background: transparent; filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
   }
+  .series-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .series-row { display: flex; flex-direction: column; gap: 6px; padding: 12px 0; }
+  .series-row + .series-row { border-top: 1px solid var(--line); }
+  .series-row .row { gap: 8px; }
+  .series-row .btn { min-width: 44px; padding: 6px 10px; }
+  .series-row .meta { flex: 1; }
+  .check.small { min-height: 32px; font-size: 15px; }
+  .admin-del[disabled] { opacity: .4; text-decoration: none; cursor: not-allowed; }
   .admin-item .badge { font-family: var(--font-label); font-size: 11px; color: var(--red); }
 </style>
 
@@ -184,7 +210,7 @@ const specs = await Promise.all(
   type Img = { planche: string | null; signature: string | null; espece: string | null };
   type Annot = { text: string; x: number; y: number };
   type Spec = {
-    folder: string; n: number; series: 'metro' | 'hs'; tech: string; title: string; latin: string; date: string; lieu: string;
+    folder: string; n: number; series: string; tech: string; title: string; latin: string; date: string; lieu: string;
     alt: string; texte: string; pending: boolean; img: Img;
     fiche: { alt: string; habitat: string; cri: string; rush: string; crush: string; annotations: Annot[] } | null;
     _status?: string;
@@ -193,7 +219,10 @@ const specs = await Promise.all(
   type ImgKey = (typeof IMG_KEYS)[number];
 
   const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
-  const views = { login: $('[data-view=login]'), list: $('[data-view=list]'), form: $<HTMLFormElement>('[data-view=form]') };
+  const views = { login: $('[data-view=login]'), list: $('[data-view=list]'), form: $<HTMLFormElement>('[data-view=form]'), series: $('[data-view=series]') };
+  type Serie = { id: string; label: string; fiche: boolean };
+  let seriesList: Serie[] = JSON.parse($('#series-data').textContent || '[]');
+  const hasFicheSeries = (id: string) => !!seriesList.find((x) => x.id === id)?.fiche;
   const form = views.form;
   let specs: Spec[] = JSON.parse($('#specs-data').textContent || '[]');
   let code = '';
@@ -282,7 +311,7 @@ const specs = await Promise.all(
     F('n').value = String(s ? s.n : Math.max(0, ...specs.map((x) => x.n)) + 1);
     F('n').readOnly = !!s;
     F('title').value = s?.title ?? '';
-    F('series').value = s?.series ?? 'metro';
+    F('series').value = s?.series ?? seriesList[0]?.id ?? '';
     F('tech').value = s?.tech ?? 'feutre';
     F('lieu').value = s?.lieu ?? '';
     F('latin').value = s?.latin ?? '';
@@ -300,7 +329,7 @@ const specs = await Promise.all(
   }
 
   function sync() {
-    const metro = F('series').value === 'metro';
+    const metro = hasFicheSeries(F('series').value);
     $('[data-fiche-block]').hidden = !metro;
     ($('[data-latin]') as HTMLElement).hidden = !metro;
     $('[data-fiche]').hidden = !F('hasFiche').checked;
@@ -424,7 +453,7 @@ const specs = await Promise.all(
     e.preventDefault();
     const msg = $('[data-form-msg]');
     const save = $<HTMLButtonElement>('[data-save]');
-    const metro = F('series').value === 'metro';
+    const metro = hasFicheSeries(F('series').value);
     const hasFiche = metro && F('hasFiche').checked;
     const data = {
       n: Number(F('n').value), series: F('series').value, tech: F('tech').value,
@@ -473,6 +502,69 @@ const specs = await Promise.all(
   }
   $('[data-delete]').addEventListener('click', (e) => {
     if (editing) removeSpec(editing, e.currentTarget as HTMLButtonElement, $('[data-form-msg]'));
+  });
+
+  // — Séries —
+  let draft: Serie[] = [];
+  const slugify = (s: string) =>
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[’']/g, '-').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'serie';
+  const usedBy = (id: string) => specs.filter((s) => s.series === id).length;
+
+  function renderSeries() {
+    const ol = $('[data-series-list]'); ol.innerHTML = '';
+    draft.forEach((x, i) => {
+      const li = document.createElement('li'); li.className = 'series-row';
+      const label = document.createElement('input'); label.value = x.label; label.maxLength = 60; label.setAttribute('aria-label', 'Nom de la série');
+      label.addEventListener('input', () => { x.label = label.value; });
+      const fiche = document.createElement('label'); fiche.className = 'check small';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = x.fiche;
+      cb.addEventListener('change', () => { x.fiche = cb.checked; });
+      fiche.append(cb, ' fiche espèce');
+      const n = usedBy(x.id);
+      const info = document.createElement('span'); info.className = 'meta'; info.textContent = `${n} spécimen${n > 1 ? 's' : ''}`;
+      const up = document.createElement('button'); up.type = 'button'; up.className = 'btn ghost'; up.textContent = '↑'; up.ariaLabel = 'Monter';
+      up.disabled = i === 0; up.addEventListener('click', () => { [draft[i - 1], draft[i]] = [draft[i], draft[i - 1]]; renderSeries(); });
+      const down = document.createElement('button'); down.type = 'button'; down.className = 'btn ghost'; down.textContent = '↓'; down.ariaLabel = 'Descendre';
+      down.disabled = i === draft.length - 1; down.addEventListener('click', () => { [draft[i + 1], draft[i]] = [draft[i], draft[i + 1]]; renderSeries(); });
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'admin-del'; del.textContent = 'supprimer';
+      del.disabled = n > 0; if (n > 0) del.title = 'Des spécimens sont rangés dans cette série.';
+      del.addEventListener('click', () => { draft.splice(i, 1); renderSeries(); });
+      const tools = document.createElement('div'); tools.className = 'row'; tools.append(info, up, down, del);
+      li.append(label, fiche, tools); ol.append(li);
+    });
+  }
+  $('[data-open-series]').addEventListener('click', () => {
+    draft = seriesList.map((x) => ({ ...x }));
+    setMsg($('[data-series-msg]'), '');
+    renderSeries(); show('series');
+  });
+  $('[data-series-back]').addEventListener('click', () => { renderList(); show('list'); });
+  $('[data-add-series]').addEventListener('click', () => {
+    const name = $<HTMLInputElement>('[name=newSeries]');
+    const fiche = $<HTMLInputElement>('[name=newSeriesFiche]');
+    const label = name.value.trim();
+    if (!label) return setMsg($('[data-series-msg]'), 'Donne un nom à la série.');
+    let id = slugify(label), k = 2;
+    while (draft.some((x) => x.id === id)) id = `${slugify(label)}-${k++}`;
+    draft.push({ id, label, fiche: fiche.checked });
+    name.value = ''; fiche.checked = false; setMsg($('[data-series-msg]'), '');
+    renderSeries();
+  });
+  $('[data-save-series]').addEventListener('click', async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement, msg = $('[data-series-msg]');
+    const list = draft.map((x) => ({ ...x, label: x.label.trim() }));
+    if (!list.length) return setMsg(msg, 'Il faut au moins une série.');
+    if (list.some((x) => !x.label)) return setMsg(msg, 'Chaque série doit avoir un nom.');
+    btn.disabled = true; setMsg(msg, 'Enregistrement…', true);
+    try {
+      await api({ action: 'series', series: list });
+      seriesList = list;
+      const sel = F('series') as unknown as HTMLSelectElement;
+      sel.innerHTML = '';
+      for (const x of seriesList) sel.append(new Option(x.label, x.id));
+      flash('Séries enregistrées. Le site sera à jour d’ici une minute environ.');
+    } catch (err) { setMsg(msg, (err as Error).message); }
+    btn.disabled = false;
   });
 
   function flash(text: string) {

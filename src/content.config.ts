@@ -8,7 +8,7 @@ const specimens = defineCollection({
     z
       .object({
         n: z.number().int().positive(),
-        series: z.enum(['metro', 'hs']),
+        series: z.string().regex(/^[a-z0-9-]+$/), // identifiant d'une série de src/data/series.json
         tech: z.enum(['feutre', 'numerique', 'mixte']).default('feutre'),
         title: z.string(),
         latin: z.string().optional(),

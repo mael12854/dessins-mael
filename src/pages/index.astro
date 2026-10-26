@@ -5,7 +5,7 @@ import PendingTag from '../components/PendingTag.astro';
 import Arrow from '../components/Arrow.astro';
 import Card from '../components/Card.astro';
 import SpecimenList from '../components/SpecimenList.astro';
-import { allSpecimens, altFor, pad, paragraphs, plancheUrl, SERIES, TECH } from '../lib/specimens';
+import { allSpecimens, altFor, pad, paragraphs, plancheUrl, seriesLabel, TECH } from '../lib/specimens';
 
 const byNew = (await allSpecimens()).reverse();
 const latest = byNew[0];
@@ -38,7 +38,7 @@ const noImages = !byNew.some((s) => s.image && !s.pending);
       )}
       <div class="pad" style="display:flex;flex-direction:column;gap:8px;padding-top:10px;">
         <h1 class="hand title">{latest.title}</h1>
-        <span class="meta">{SERIES[latest.series]} · obs. le {latest.date} · {latest.lieu}</span>
+        <span class="meta">{seriesLabel(latest.series)} · obs. le {latest.date} · {latest.lieu}</span>
         {paragraphs(latest.texte).length > 0 && (
           <div class="prose texte">{paragraphs(latest.texte).map((p) => <p>{p}</p>)}</div>
         )}

@@ -46,6 +46,14 @@ export async function listDir(path: string): Promise<{ name: string; path: strin
   return Array.isArray(r) ? r : [];
 }
 
+/** Lit un fichier texte du dépôt (null s'il n'existe pas). */
+export async function readText(path: string): Promise<string | null> {
+  const { branch } = cfg();
+  const r = await gh<{ content?: string; encoding?: string }>(`/contents/${encodeURI(path)}?ref=${branch}`);
+  if (!r?.content) return null;
+  return Buffer.from(r.content, 'base64').toString('utf8');
+}
+
 export type Change =
   | { path: string; content: string } // texte
   | { path: string; blob: string } // blob déjà envoyé

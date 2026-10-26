@@ -4,7 +4,7 @@ import Sheet from '../../../components/Sheet.astro';
 import PendingTag from '../../../components/PendingTag.astro';
 import Arrow from '../../../components/Arrow.astro';
 import { Image } from 'astro:assets';
-import { allSpecimens, altFor, paragraphs, pad, plancheUrl, ficheUrl, hasFiche, SERIES, TECH } from '../../../lib/specimens';
+import { allSpecimens, altFor, paragraphs, pad, plancheUrl, ficheUrl, hasFiche, seriesLabel, TECH } from '../../../lib/specimens';
 
 export async function getStaticPaths() {
   const all = await allSpecimens();
@@ -15,12 +15,12 @@ export async function getStaticPaths() {
 }
 const { s, prev, next } = Astro.props;
 ---
-<Base title={`Spécimen n°${s.n} — ${s.title}`} description={`${s.title} : spécimen n°${s.n} de la série « ${SERIES[s.series]} », dessiné ${s.tech === 'numerique' ? 'sur ordinateur' : 'au feutre noir'}. Observé ${s.pending ? 'en ce moment' : `le ${s.date}`}, ${s.lieu}.`}>
+<Base title={`Spécimen n°${s.n} — ${s.title}`} description={`${s.title} : spécimen n°${s.n} de la série « ${seriesLabel(s.series)} », dessiné ${s.tech === 'numerique' ? 'sur ordinateur' : 'au feutre noir'}. Observé ${s.pending ? 'en ce moment' : `le ${s.date}`}, ${s.lieu}.`}>
   <section style="display:flex;flex-direction:column;gap:16px;padding-top:26px;">
     <div class="pad" style="display:flex;flex-direction:column;align-items:flex-start;">
       <div class="cartouche">
         <svg width="100%" height="20" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true"><path d="M50 2 L3 20 M50 2 L97 20" fill="none" stroke="currentColor" stroke-width="1.2" vector-effect="non-scaling-stroke"></path></svg>
-        <div class="hand cartouche-box">{SERIES[s.series]}</div>
+        <div class="hand cartouche-box">{seriesLabel(s.series)}</div>
       </div>
     </div>
 

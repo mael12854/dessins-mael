@@ -18,6 +18,8 @@ Variables d’environnement Vercel nécessaires :
 | `GITHUB_REPO` | facultatif, `mael12854/dessins-mael` par défaut |
 | `GITHUB_BRANCH` | facultatif, `main` par défaut |
 
+Les séries (nom, ordre, fiche espèce ou non) se gèrent dans l’admin, bouton « Séries ». Elles sont stockées dans `src/data/series.json`.
+
 Après un changement de variable, redéployer le site (Vercel → Deployments → Redeploy).
 
 ### À la main
@@ -38,7 +40,7 @@ specimens/
 ```yaml
 ---
 n: 9                       # numéro du spécimen (unique)
-series: metro              # metro = La vie des gens du métro · hs = Hors-série
+series: metro              # identifiant d'une série de src/data/series.json
 tech: feutre               # feutre | numerique | mixte → légende sous la planche
 title: "La Dormeuse de terminus"
 latin: "Somnolenta terminalis"

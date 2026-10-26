@@ -1,6 +1,11 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
 
-export const SERIES = { metro: 'La vie des gens du métro', hs: 'Hors-série' } as const;
+import seriesData from '../data/series.json';
+
+/** Séries, dans l'ordre d'affichage (modifiables depuis /admin). */
+export type Serie = { id: string; label: string; fiche: boolean };
+export const SERIES_LIST: Serie[] = seriesData;
+export const seriesLabel = (id: string) => SERIES_LIST.find((x) => x.id === id)?.label ?? id;
 export const TECH = {
   feutre: 'feutre noir sur papier, scanné',
   numerique: 'dessin numérique',
@@ -16,7 +21,7 @@ export const ficheUrl = (n: number) => `/specimen/${n}/fiche/`;
 export const altFor = (s: Specimen) => s.alt || `Planche n°${s.n} : ${s.title}`;
 /** Texte affiché, découpé en paragraphes. */
 export const paragraphs = (t?: string) => (t ?? '').split(/\n+/).map((p) => p.trim()).filter(Boolean);
-export const hasFiche = (s: Specimen) => s.series === 'metro' && !s.pending && !!s.fiche;
+export const hasFiche = (s: Specimen) => !s.pending && !!s.fiche;
 
 /** Tous les spécimens, du n°1 au plus récent. */
 export async function allSpecimens(): Promise<Specimen[]> {

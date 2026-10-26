@@ -1,0 +1,5 @@
+[
+  { "id": "metro", "label": "La vie des gens du métro", "fiche": true },
+  { "id": "dessinateurs", "label": "Les dessinateurs", "fiche": false },
+  { "id": "hs", "label": "Hors-série", "fiche": false }
+]

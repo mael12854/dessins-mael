@@ -1,11 +1,11 @@
 ---
 import Base from '../layouts/Base.astro';
 import Card from '../components/Card.astro';
-import { allSpecimens, SERIES } from '../lib/specimens';
+import { allSpecimens, SERIES_LIST } from '../lib/specimens';
 
 const byNew = (await allSpecimens()).reverse();
 const count = (k: number) => `${k} spécimen${k > 1 ? 's' : ''} sous verre`;
-const chips = [['all', 'tout'], ['metro', SERIES.metro], ['hs', SERIES.hs]] as const;
+const chips = [['all', 'tout'], ...SERIES_LIST.map((x) => [x.id, x.label])];
 ---
 <Base title="La collection" active="collection">
   <section class="pad" style="display:flex;flex-direction:column;gap:18px;padding-top:26px;">
@@ -54,7 +54,7 @@ const chips = [['all', 'tout'], ['metro', SERIES.metro], ['hs', SERIES.hs]] as c
         });
       });
       var q = new URLSearchParams(location.search).get('serie');
-      if (q === 'metro' || q === 'hs') apply(q);
+      if (q && document.querySelector('[data-filter="' + CSS.escape(q) + '"]')) apply(q);
     })();
   </script>
 </Base>
