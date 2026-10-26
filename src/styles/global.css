@@ -185,3 +185,9 @@ main { flex: 1; display: flex; flex-direction: column; }
 /* Texte de l'auteur sous la planche */
 .texte { display: flex; flex-direction: column; gap: 10px; }
 .texte p { margin: 0; max-width: 34em; text-wrap: pretty; }
+
+/* Autoportrait : couleurs inversées en mode nuit (traits clairs sur fond sombre). */
+@media (prefers-color-scheme: dark) {
+  .portrait-wide { background: transparent; box-shadow: none; }
+  .portrait-wide img { filter: invert(1); mix-blend-mode: screen; }
+}
