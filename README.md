@@ -44,9 +44,8 @@ fiche:                     # série métro uniquement
 ---
 ```
 
-Sans `image`, la planche s’affiche comme un emplacement hachuré. Les images sont converties en WebP (600, 1200 et 1800px) au moment du build.
+Sans `image`, la planche s’affiche comme un emplacement hachuré. Sans aucun spécimen, l’accueil affiche « Spécimen n°1 — en cours d’observation ». Les images sont converties en WebP (600, 1200 et 1800px) au moment du build.
 
-Les spécimens n°1 à 8 sont les **exemples de la maquette** (sans images) : à remplacer par les vrais.
 
 Autoportrait et signature de la page « à propos » : déposer `src/assets/autoportrait.jpg` (carré) et `src/assets/signature.png`.
 
