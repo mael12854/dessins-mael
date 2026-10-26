@@ -4,6 +4,8 @@
   --ink: #1A1816; --ink-2: #4A4640; --line: #8A847A; --hairline: #D9D3C7;
   --red: #C23B30; --blue: #2F5DA8; --yellow: #F4D35E;
   --bg: var(--paper);
+  /* Emplacement vide (planche sans image) : suit le thème, contrairement aux planches. */
+  --placeholder: var(--sheet); --hatch-line: rgba(26, 24, 22, .07);
 
   --font-hand: 'Shantell Sans Variable', 'Shantell Sans', cursive;
   --hand-settings: 'BNCE' 60, 'INFM' 80;
@@ -30,5 +32,6 @@
 :root[data-theme='dark'] {
   --bg: #1B1917; --ink: #F1ECE2; --ink-2: #B9B2A6; --line: #6A645B;
   --label: #26231F; --red: #EC7A68; --blue: #93B2E8;
+  --placeholder: #23201D; --hatch-line: rgba(241, 236, 226, .07);
   color-scheme: dark;
 }
