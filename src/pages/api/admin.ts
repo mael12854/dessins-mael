@@ -2,7 +2,6 @@ import type { APIRoute } from 'astro';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { commit, createBlob, listDir, readText, HttpError, type Change } from '../../lib/github';
 import seriesData from '../../data/series.json';
-import { readPage, readZone } from '../../lib/handwriting';
 
 export const prerender = false;
 
@@ -176,14 +175,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (!body) return json(400, { error: 'Requête invalide.' });
     switch (body.action) {
       case 'login':
-        return json(200, { ok: true, github: !!process.env.GITHUB_TOKEN, ocr: !!process.env.ANTHROPIC_API_KEY });
-      case 'ocr': {
-        // Lecture de l'écriture : une zone (mode « zone ») ou toute la planche (mode « page »).
-        const media = body.media === 'image/png' ? 'image/png' : 'image/jpeg';
-        if (typeof body.base64 !== 'string' || body.base64.length > MAX_BLOB || !/^[A-Za-z0-9+/=]+$/.test(body.base64))
-          return json(400, { error: 'Image trop lourde ou invalide.' });
-        return json(200, body.mode === 'page' ? await readPage(body.base64, media) : await readZone(body.base64, media));
-      }
+        return json(200, { ok: true, github: !!process.env.GITHUB_TOKEN });
       case 'blob': {
         if (typeof body.base64 !== 'string' || body.base64.length > MAX_BLOB || !/^[A-Za-z0-9+/=]+$/.test(body.base64))
           return json(400, { error: 'Image trop lourde ou invalide.' });
