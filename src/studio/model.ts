@@ -4,9 +4,9 @@
 
 export type FontKey = 'hand' | 'body' | 'label';
 export const FONTS: Record<FontKey, { family: string; label: string; weights: number[]; italic: boolean }> = {
-  hand: { family: 'Shantell Sans Variable', label: 'Lettrage BD', weights: [400, 500, 600, 700, 800], italic: true },
-  body: { family: 'Atkinson Hyperlegible', label: 'Texte lisible', weights: [400, 700], italic: true },
-  label: { family: 'Courier Prime', label: 'Machine à écrire', weights: [400], italic: false },
+  hand: { family: 'Shantell Sans Variable', label: 'Shantell Sans — lettrage BD (titres du site)', weights: [300, 400, 500, 600, 700, 800], italic: true },
+  body: { family: 'Atkinson Hyperlegible', label: 'Atkinson Hyperlegible — texte courant du site', weights: [400, 700], italic: true },
+  label: { family: 'Courier Prime', label: 'Courier Prime — étiquettes du site', weights: [400], italic: false },
 };
 
 export const COLORS = [
@@ -68,9 +68,19 @@ export interface ArrowItem {
   width: number;
 }
 
-export type Item = TextItem | BubbleItem | ArrowItem;
-export type LayerKey = 'drawing' | 'bubbles' | 'texts';
-export const layerOf = (it: Item): LayerKey => (it.type === 'text' ? 'texts' : 'bubbles');
+/** Trait de gros feutre (pour masquer l'écriture à la main). */
+export interface StrokeItem {
+  id: string;
+  type: 'stroke';
+  points: number[];
+  size: number;
+  /** 'auto' = couleur du papier (blanc si le fond est nettoyé). */
+  color: 'auto' | string;
+}
+
+export type Item = TextItem | BubbleItem | ArrowItem | StrokeItem;
+export type LayerKey = 'drawing' | 'masks' | 'bubbles' | 'texts';
+export const layerOf = (it: Item): LayerKey => (it.type === 'text' ? 'texts' : it.type === 'stroke' ? 'masks' : 'bubbles');
 
 export interface LayerState { visible: boolean; locked: boolean }
 export interface Doc {
@@ -90,6 +100,7 @@ export const newDoc = (width: number, height: number): Doc => ({
   background: 'clean',
   layers: {
     drawing: { visible: true, locked: true },
+    masks: { visible: true, locked: false },
     bubbles: { visible: true, locked: false },
     texts: { visible: true, locked: false },
   },
@@ -125,11 +136,18 @@ export function newArrow(d: Doc, x: number, y: number): ArrowItem {
   return { id: uid(), type: 'arrow', x1: x - size * 3, y1: y - size * 2, x2: x, y2: y, bend: 0.25, color: '#2F5DA8', width: Math.max(2, Math.round(size / 10)) };
 }
 
+/** Brouillons créés avant l'ajout d'un calque : on complète. */
+export function migrate(d: Doc): Doc {
+  d.layers.masks ??= { visible: true, locked: false };
+  return d;
+}
+
 export const displayText = (it: { text: string; upper: boolean }) => (it.upper ? it.text.toLocaleUpperCase('fr-FR') : it.text);
 export const fontStyle = (it: TextStyle) => `${it.italic ? 'italic ' : ''}${it.weight}`;
 
 export function describe(it: Item): string {
   if (it.type === 'arrow') return 'Flèche';
+  if (it.type === 'stroke') return `Trait de feutre${it.color === 'auto' ? ' (couleur du papier)' : ''}`;
   const t = it.text.replace(/\s+/g, ' ').trim() || '(vide)';
   const short = t.length > 28 ? t.slice(0, 27) + '…' : t;
   if (it.type === 'text') return short;

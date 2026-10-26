@@ -3,11 +3,11 @@
 import Konva from 'konva';
 import { drawBubble, hitBubble, tailVisible, textBox } from './bubble';
 import {
-  type ArrowItem, type BubbleItem, type Doc, type Item, type LayerKey, type TextItem,
-  FONTS, displayText, fontStyle, layerOf, newArrow, newBubble, newText, uid,
+  type ArrowItem, type BubbleItem, type Doc, type Item, type LayerKey, type StrokeItem, type TextItem,
+  FONTS, baseSize, displayText, fontStyle, layerOf, migrate, newArrow, newBubble, newText, uid,
 } from './model';
 
-export type Tool = 'select' | 'text' | 'bubble-oval' | 'bubble-rect' | 'bubble-thought' | 'arrow';
+export type Tool = 'select' | 'text' | 'bubble-oval' | 'bubble-rect' | 'bubble-thought' | 'arrow' | 'marker';
 export type View = 'clean' | 'original' | 'compare';
 
 export interface EditorEvents {
@@ -27,6 +27,7 @@ const HANDLE = '#C23B30';
 export class Editor {
   readonly stage: Konva.Stage;
   private bg = new Konva.Layer();
+  private masks = new Konva.Layer();
   private bubbles = new Konva.Layer();
   private texts = new Konva.Layer();
   private ui = new Konva.Layer();
@@ -42,6 +43,12 @@ export class Editor {
   private arrowHandles = [this.handle(), this.handle(), this.handle(ACCENT)];
   private divider = new Konva.Line({ stroke: HANDLE, strokeWidth: 2, listening: false });
   private dividerHandle = this.handle(HANDLE);
+  private brushCursor = new Konva.Circle({ stroke: ACCENT, strokeWidth: 1.5, dash: [4, 4], listening: false, visible: false });
+  private drawing: { line: Konva.Line; points: number[] } | null = null;
+  /** Réglages du gros feutre. */
+  marker = { size: 0, color: 'auto' as string };
+  /** Couleur du papier de l'original (pour le feutre « couleur du fond »). */
+  private paper = '#FFFFFF';
 
   doc!: Doc;
   private nodes = new Map<string, Konva.Group | Konva.Text | Konva.Arrow>();
@@ -60,8 +67,8 @@ export class Editor {
     this.stage = new Konva.Stage({ container, width: container.clientWidth || 300, height: container.clientHeight || 300, draggable: true });
     this.cleanGroup.add(this.cleanImg);
     this.bg.add(this.origImg, this.cleanGroup);
-    this.ui.add(this.divider, this.dividerHandle, this.tr, this.tailHandle, ...this.arrowHandles);
-    this.stage.add(this.bg, this.bubbles, this.texts, this.ui);
+    this.ui.add(this.divider, this.dividerHandle, this.tr, this.tailHandle, ...this.arrowHandles, this.brushCursor);
+    this.stage.add(this.bg, this.masks, this.bubbles, this.texts, this.ui);
     this.bindStage();
     this.bindHandles();
     new ResizeObserver(() => this.resize()).observe(container);
@@ -72,8 +79,10 @@ export class Editor {
   }
 
   // ————— Chargement —————
-  load(doc: Doc, orig: CanvasImageSource, clean: CanvasImageSource) {
-    this.doc = doc;
+  load(doc: Doc, orig: CanvasImageSource, clean: CanvasImageSource, paper = '#FFFFFF') {
+    this.doc = migrate(doc);
+    this.paper = paper;
+    if (!this.marker.size) this.marker.size = Math.round(baseSize(doc) * 1.4);
     this.origImg.setAttrs({ image: orig, width: doc.width, height: doc.height });
     this.cleanImg.setAttrs({ image: clean, width: doc.width, height: doc.height });
     this.history = [JSON.stringify(doc)];
@@ -86,17 +95,17 @@ export class Editor {
   }
 
   // ————— Rendu —————
-  private layerNode(k: LayerKey) { return k === 'texts' ? this.texts : k === 'bubbles' ? this.bubbles : this.bg; }
+  private layerNode(k: LayerKey) { return k === 'texts' ? this.texts : k === 'bubbles' ? this.bubbles : k === 'masks' ? this.masks : this.bg; }
 
   render() {
     const d = this.doc;
     this.bg.visible(d.layers.drawing.visible);
-    for (const k of ['bubbles', 'texts'] as const) {
+    for (const k of ['masks', 'bubbles', 'texts'] as const) {
       this.layerNode(k).visible(d.layers[k].visible);
       this.layerNode(k).listening(!d.layers[k].locked);
     }
     const alive = new Set<string>();
-    const order: Record<string, number> = { bubbles: 0, texts: 0 };
+    const order: Record<string, number> = { masks: 0, bubbles: 0, texts: 0 };
     for (const it of d.items) {
       alive.add(it.id);
       let node = this.nodes.get(it.id);
@@ -159,6 +168,16 @@ export class Editor {
       });
       g.on('transformend', () => this.commit());
       node = g;
+    } else if (it.type === 'stroke') {
+      node = new Konva.Line({ id: it.id, draggable: true, lineCap: 'round', lineJoin: 'round', tension: 0.35 }) as unknown as Konva.Arrow;
+      node.on('dragend', () => {
+        const s = this.find(it.id) as StrokeItem | undefined;
+        if (!s) return;
+        const dx = node.x(), dy = node.y();
+        node.position({ x: 0, y: 0 });
+        this.patchQuiet(s.id, { points: s.points.map((v, i) => v + (i % 2 ? dy : dx)) });
+        this.commit();
+      });
     } else {
       node = new Konva.Arrow({ id: it.id, draggable: true, points: [], tension: 0.5, lineCap: 'round', lineJoin: 'round', hitStrokeWidth: 24 });
       node.on('dragend', () => {
@@ -171,7 +190,9 @@ export class Editor {
       });
     }
     node.on('mousedown touchstart', (e) => {
-      if (e.evt instanceof TouchEvent && e.evt.touches.length > 1) return;
+      if (window.TouchEvent && e.evt instanceof TouchEvent && e.evt.touches.length > 1) return;
+      if (this.tool === 'marker') return; // on dessine par-dessus
+      if (it.type === 'stroke' && this.tool !== 'select') return; // on écrit par-dessus le feutre
       if (this.tool !== 'select') this.setTool('select');
       this.select(it.id);
     });
@@ -179,7 +200,7 @@ export class Editor {
       if (it.type === 'bubble') { const b = this.find(it.id) as BubbleItem; if (b) { b.x = node.x(); b.y = node.y(); } }
       this.placeHandles();
     });
-    if (it.type !== 'arrow') {
+    if (it.type !== 'arrow' && it.type !== 'stroke') {
       node.on('dragend', () => { this.patchQuiet(it.id, { x: node.x(), y: node.y() }); this.commit(); });
       node.on('dblclick dbltap', () => { const cur = this.find(it.id); if (cur) this.ev.editText(cur); });
     }
@@ -203,6 +224,11 @@ export class Editor {
       (g.findOne('.label') as Konva.Text).setAttrs({
         ...box, text: displayText(it), fontFamily: `"${FONTS[it.font].family}"`, fontSize: it.size,
         fontStyle: fontStyle(it), align: it.align, fill: it.color, lineHeight: it.lineHeight,
+      });
+    } else if (it.type === 'stroke') {
+      (node as unknown as Konva.Line).setAttrs({
+        x: 0, y: 0, points: it.points, strokeWidth: it.size, stroke: this.strokeColor(it.color),
+        hitStrokeWidth: Math.max(it.size, 20), draggable: this.tool !== 'marker',
       });
     } else {
       const len = Math.hypot(it.x2 - it.x1, it.y2 - it.y1) || 1;
@@ -241,7 +267,7 @@ export class Editor {
   private refreshSelectionUI() {
     const it = this.getSelected();
     const node = it ? this.nodes.get(it.id) : undefined;
-    if (it && node && it.type !== 'arrow') {
+    if (it && node && it.type !== 'arrow' && it.type !== 'stroke') {
       const isText = it.type === 'text';
       this.tr.setAttrs({
         rotateEnabled: isText,
@@ -325,10 +351,83 @@ export class Editor {
 
   // ————— Outils et interactions —————
   setTool(t: Tool) {
+    const wasMarker = this.tool === 'marker';
     this.tool = t;
-    this.container.style.cursor = t === 'select' ? 'default' : 'crosshair';
+    this.container.style.cursor = t === 'select' ? 'default' : t === 'marker' ? 'none' : 'crosshair';
+    this.stage.draggable(t !== 'marker');
+    if (t !== 'marker') { this.brushCursor.visible(false); this.ui.batchDraw(); }
     if (t !== 'select') this.select(null);
+    if (wasMarker !== (t === 'marker')) this.render(); // traits déplaçables ou non
     this.ev.tool(t);
+  }
+
+  setMarker(p: Partial<{ size: number; color: string }>) {
+    Object.assign(this.marker, p);
+    this.brushCursor.radius(this.marker.size / 2);
+    this.ui.batchDraw();
+  }
+
+  /** Couleur réelle d'un trait : « auto » = papier du fond affiché. */
+  private strokeColor(c: string) {
+    if (c !== 'auto') return c;
+    const bg = this.view === 'compare' ? this.doc.background : this.view;
+    return bg === 'original' ? this.paper : '#FFFFFF';
+  }
+
+  private refreshStrokes() {
+    for (const it of this.doc.items) {
+      if (it.type !== 'stroke') continue;
+      const n = this.nodes.get(it.id) as unknown as Konva.Line | undefined;
+      n?.stroke(this.strokeColor(it.color));
+    }
+    this.masks.batchDraw();
+  }
+
+  // ————— Gros feutre —————
+  private startStroke(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
+    if (window.TouchEvent && e.evt instanceof TouchEvent && e.evt.touches.length > 1) return;
+    const p = this.masks.getRelativePointerPosition();
+    if (!p) return;
+    const line = new Konva.Line({
+      points: [p.x, p.y, p.x + 0.01, p.y], stroke: this.strokeColor(this.marker.color), strokeWidth: this.marker.size,
+      lineCap: 'round', lineJoin: 'round', tension: 0.35, listening: false,
+    });
+    this.masks.add(line);
+    this.drawing = { line, points: [p.x, p.y] };
+    this.masks.batchDraw();
+  }
+
+  private moveStroke() {
+    const p = this.masks.getRelativePointerPosition();
+    if (!p) return;
+    if (this.tool === 'marker' && !this.pinch) {
+      this.brushCursor.setAttrs({ x: p.x, y: p.y, radius: this.marker.size / 2, strokeWidth: 1.5 / this.stage.scaleX(), visible: true });
+      this.ui.batchDraw();
+    }
+    const d = this.drawing;
+    if (!d) return;
+    const n = d.points.length;
+    if (Math.hypot(p.x - d.points[n - 2], p.y - d.points[n - 1]) < Math.max(1, this.marker.size * 0.08)) return;
+    d.points.push(p.x, p.y);
+    d.line.points(d.points);
+    this.masks.batchDraw();
+  }
+
+  private endStroke() {
+    const d = this.drawing;
+    if (!d) return;
+    this.drawing = null;
+    d.line.destroy();
+    const pts = d.points.length >= 4 ? d.points : [d.points[0], d.points[1], d.points[0] + 0.01, d.points[1]];
+    const it: StrokeItem = { id: uid(), type: 'stroke', points: pts.map((v) => Math.round(v * 10) / 10), size: this.marker.size, color: this.marker.color };
+    this.add(it);
+  }
+
+  private cancelStroke() {
+    if (!this.drawing) return;
+    this.drawing.line.destroy();
+    this.drawing = null;
+    this.masks.batchDraw();
   }
 
   private bindStage() {
@@ -337,15 +436,20 @@ export class Editor {
     st.on('dragmove', (e) => { if (e.target === st) this.placeHandles(); });
     st.on('click tap', (e) => {
       if (this.panned) { this.panned = false; return; }
+      if (this.tool === 'marker') return;
       const t = e.target;
-      const onBackground = t === st || t.hasName('bg');
+      const onBackground = t === st || t.hasName('bg') || (t.getLayer() === this.masks && this.tool !== 'select');
       if (!onBackground) return;
       if (this.tool === 'select') { this.select(null); return; }
       const p = this.texts.getRelativePointerPosition();
       if (!p) return;
       this.createAt(this.tool, p.x, p.y);
     });
-    st.on('mousedown touchstart', () => { this.panned = false; });
+    st.on('mousedown touchstart', (e) => { this.panned = false; if (this.tool === 'marker') this.startStroke(e); });
+    st.on('mousemove touchmove', () => this.moveStroke());
+    st.on('mouseup touchend', () => this.endStroke());
+    st.on('mouseleave', () => { this.brushCursor.visible(false); this.ui.batchDraw(); });
+    window.addEventListener('mouseup', () => this.endStroke());
 
     st.on('wheel', (e) => {
       e.evt.preventDefault();
@@ -365,6 +469,8 @@ export class Editor {
       const touches = (e.evt as TouchEvent).touches;
       if (touches.length !== 2) return;
       e.evt.preventDefault();
+      this.cancelStroke();
+      this.brushCursor.visible(false);
       if (st.isDragging()) st.stopDrag();
       for (const n of this.nodes.values()) if (n.isDragging()) n.stopDrag();
       const r = this.container.getBoundingClientRect();
@@ -440,6 +546,7 @@ export class Editor {
     const off = Math.round(Math.max(this.doc.width, this.doc.height) * 0.02);
     const copy = { ...structuredClone(it), id: uid() } as Item;
     if (copy.type === 'arrow') { copy.x1 += off; copy.x2 += off; copy.y1 += off; copy.y2 += off; }
+    else if (copy.type === 'stroke') copy.points = copy.points.map((v) => v + off);
     else { copy.x += off; copy.y += off; }
     this.doc.items.push(copy);
     this.render();
@@ -467,6 +574,7 @@ export class Editor {
     const it = this.getSelected();
     if (!it) return;
     if (it.type === 'arrow') { it.x1 += dx; it.x2 += dx; it.y1 += dy; it.y2 += dy; }
+    else if (it.type === 'stroke') it.points = it.points.map((v, i) => v + (i % 2 ? dy : dx));
     else { it.x += dx; it.y += dy; }
     this.render();
     this.commitSoon();
@@ -482,6 +590,7 @@ export class Editor {
     this.doc.background = bg;
     this.commit();
     if (this.view !== 'compare') this.setView(bg);
+    else this.refreshStrokes();
   }
 
   /** Agrandit la bulle pour que le texte tienne dedans. */
@@ -521,7 +630,7 @@ export class Editor {
 
   private restore(i: number) {
     this.hIndex = i;
-    this.doc = JSON.parse(this.history[i]);
+    this.doc = migrate(JSON.parse(this.history[i]));
     this.render();
     this.ev.select(this.getSelected());
     this.ev.change(this.doc, true);
@@ -549,6 +658,7 @@ export class Editor {
       this.cleanGroup.clipFunc((ctx) => { ctx.rect(x, 0, W - x, this.doc.height); });
     } else this.cleanGroup.clipFunc(undefined as any);
     this.divider.points([this.split * W, 0, this.split * W, this.doc.height]);
+    this.refreshStrokes();
     this.bg.batchDraw();
     this.ui.batchDraw();
   }

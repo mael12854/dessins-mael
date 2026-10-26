@@ -52,7 +52,11 @@ const editor = new Editor($<HTMLDivElement>('[data-canvas]'), {
     if (committed && !panelRoot.contains(document.activeElement)) panel.render();
   },
   select: (it) => { panel.tab = it ? 'props' : 'layers'; panel.render(); document.body.classList.toggle('has-selection', !!it); },
-  tool: (t) => { document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === t))); },
+  tool: (t) => {
+    document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+    panel.render();
+    if (t === 'marker' && matchMedia('(pointer: coarse)').matches) document.body.classList.remove('sheet-open');
+  },
   zoom: (s) => { $('[data-zoom-label]').textContent = `${Math.round(s * 100)} %`; },
   history: (u, r) => { $<HTMLButtonElement>('[data-undo]').disabled = !u; $<HTMLButtonElement>('[data-redo]').disabled = !r; },
   editText: () => { openSheet(); panel.focusText(); },
@@ -63,7 +67,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) =>
   b.addEventListener('click', () => {
     const t = b.dataset.tool as Tool;
     // Sur écran tactile, un appui sur l'outil ajoute directement l'élément au centre.
-    if (t !== 'select' && matchMedia('(pointer: coarse)').matches) editor.addAtCenter(t);
+    if (t !== 'select' && t !== 'marker' && matchMedia('(pointer: coarse)').matches) editor.addAtCenter(t);
     else editor.setTool(editor.tool === t ? 'select' : t);
   }));
 $('[data-undo]').addEventListener('click', () => editor.undo());
@@ -114,7 +118,7 @@ window.addEventListener('keydown', (e) => {
     case '0': editor.fit(); break;
     case '1': editor.actualSize(); break;
     default: {
-      const tools: Record<string, Tool> = { v: 'select', t: 'text', b: 'bubble-oval', r: 'bubble-rect', p: 'bubble-thought', a: 'arrow' };
+      const tools: Record<string, Tool> = { v: 'select', t: 'text', b: 'bubble-oval', r: 'bubble-rect', p: 'bubble-thought', a: 'arrow', f: 'marker' };
       if (tools[k]) editor.setTool(tools[k]);
     }
   }
@@ -170,10 +174,24 @@ async function decode(blob: Blob, w?: number, h?: number) {
   ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H); // PNG transparents : fond papier
   ctx.drawImage(bmp, 0, 0, W, H);
   bmp.close?.();
+  const data = ctx.getImageData(0, 0, W, H);
+  const paper = paperColor(data);
   const clean = document.createElement('canvas');
   clean.width = W; clean.height = H;
-  clean.getContext('2d')!.putImageData(cleanImageData(ctx.getImageData(0, 0, W, H)), 0, 0);
-  return { orig, clean, W, H, reduced, srcW, srcH };
+  clean.getContext('2d')!.putImageData(cleanImageData(data), 0, 0);
+  return { orig, clean, W, H, reduced, srcW, srcH, paper };
+}
+
+/** Couleur moyenne du papier de l'original (pixels les plus clairs). */
+function paperColor(im: ImageData) {
+  const d = im.data, n = im.width * im.height;
+  const step = Math.max(1, Math.floor(n / 60000));
+  const px: [number, number, number, number][] = [];
+  for (let p = 0; p < n; p += step) { const i = p * 4; px.push([(d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000, d[i], d[i + 1], d[i + 2]]); }
+  px.sort((a, b) => a[0] - b[0]);
+  const top = px.slice(Math.floor(px.length * 0.5), Math.floor(px.length * 0.9));
+  const avg = (k: 1 | 2 | 3) => Math.round(top.reduce((s, x) => s + x[k], 0) / Math.max(1, top.length));
+  return '#' + [avg(1), avg(2), avg(3)].map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
 async function loadFonts() {
@@ -188,13 +206,13 @@ async function openProject(rec: ProjectRecord) {
   try {
     const blob = await getOriginal(rec.id);
     if (!blob) throw new Error('Le fichier original de ce brouillon est introuvable sur cet appareil.');
-    const [{ orig, clean }] = await Promise.all([decode(blob, rec.width, rec.height), loadFonts()]);
+    const [{ orig, clean, paper }] = await Promise.all([decode(blob, rec.width, rec.height), loadFonts()]);
     current = rec;
     nameInput.value = rec.name;
     originalInfo = `${(blob.size / 1e6).toFixed(1).replace('.', ',')} Mo`;
     show('editor');
     await nextFrame();
-    editor.load(rec.doc as Doc, orig, clean);
+    editor.load(rec.doc as Doc, orig, clean, paper);
     editor.refreshFonts();
     setView(editor.view);
     panel.tab = 'layers';
