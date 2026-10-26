@@ -12,7 +12,7 @@ const specs = await Promise.all(
   entries.map(async ({ id, data: d }) => ({
     folder: id,
     n: d.n, series: d.series, tech: d.tech, title: d.title, latin: d.latin ?? '', date: d.date, lieu: d.lieu,
-    alt: d.alt ?? '', pending: d.pending,
+    alt: d.alt ?? '', texte: d.texte ?? '', pending: d.pending,
     img: { planche: await preview(d.image), signature: await preview(d.signature), espece: await preview(d.fiche?.image) },
     fiche: d.fiche
       ? { alt: d.fiche.alt ?? '', habitat: d.fiche.habitat, cri: d.fiche.cri, rush: d.fiche.rush, crush: d.fiche.crush, annotations: d.fiche.annotations }
@@ -81,7 +81,8 @@ const specs = await Promise.all(
           <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir le scan</label>
           <button class="btn ghost" type="button" data-remove hidden>Enlever l’image</button>
         </div>
-        <label class="field"><span class="field-label">Description du dessin (pour les lecteurs d’écran)</span><textarea name="alt" rows="2" maxlength="400"></textarea></label>
+        <label class="field"><span class="field-label">Texte affiché sous la planche <em>(facultatif)</em></span><textarea name="texte" rows="5" maxlength="4000" placeholder="Quelques mots sur ce spécimen…"></textarea></label>
+        <label class="field"><span class="field-label">Description de l’image pour les personnes malvoyantes <em>(facultatif, non affichée)</em></span><textarea name="alt" rows="2" maxlength="400" placeholder="Un homme endormi contre la vitre…"></textarea></label>
         <span class="field-label">Signature <em>(facultatif)</em></span>
         <div class="imgfield small" data-img="signature">
           <img alt="" hidden />
@@ -99,7 +100,7 @@ const specs = await Promise.all(
             <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir le dessin de l’espèce</label>
             <button class="btn ghost" type="button" data-remove hidden>Enlever l’image</button>
           </div>
-          <label class="field"><span class="field-label">Description du dessin de l’espèce</span><textarea name="ficheAlt" rows="2" maxlength="400"></textarea></label>
+          <label class="field"><span class="field-label">Description de l’image pour les personnes malvoyantes <em>(facultatif, non affichée)</em></span><textarea name="ficheAlt" rows="2" maxlength="400"></textarea></label>
           <label class="field"><span class="field-label">a. Habitat</span><textarea name="habitat" rows="2"></textarea></label>
           <label class="field"><span class="field-label">b. Cri</span><textarea name="cri" rows="2"></textarea></label>
           <label class="field"><span class="field-label">c. Comportement en période de rush</span><textarea name="rush" rows="2"></textarea></label>
@@ -181,7 +182,7 @@ const specs = await Promise.all(
   type Annot = { text: string; x: number; y: number };
   type Spec = {
     folder: string; n: number; series: 'metro' | 'hs'; tech: string; title: string; latin: string; date: string; lieu: string;
-    alt: string; pending: boolean; img: Img;
+    alt: string; texte: string; pending: boolean; img: Img;
     fiche: { alt: string; habitat: string; cri: string; rush: string; crush: string; annotations: Annot[] } | null;
     _status?: string;
   };
@@ -285,6 +286,7 @@ const specs = await Promise.all(
     F('date').value = s ? toIso(s.date) : new Date().toISOString().slice(0, 10);
     F('pending').checked = !!s?.pending;
     F('alt').value = s?.alt ?? '';
+    F('texte').value = s?.texte ?? '';
     F('hasFiche').checked = s ? !!s.fiche : true;
     F('ficheAlt').value = s?.fiche?.alt ?? '';
     for (const k of ['habitat', 'cri', 'rush', 'crush'] as const) F(k).value = s?.fiche?.[k] ?? '';
@@ -396,7 +398,7 @@ const specs = await Promise.all(
     const data = {
       n: Number(F('n').value), series: F('series').value, tech: F('tech').value,
       title: F('title').value.trim(), latin: metro ? F('latin').value.trim() : '',
-      date: fromIso(F('date').value), lieu: F('lieu').value.trim(), alt: F('alt').value.trim(),
+      date: fromIso(F('date').value), lieu: F('lieu').value.trim(), alt: F('alt').value.trim(), texte: F('texte').value.trim(),
       pending: F('pending').checked,
       fiche: hasFiche
         ? { alt: F('ficheAlt').value.trim(), habitat: F('habitat').value, cri: F('cri').value, rush: F('rush').value, crush: F('crush').value,
@@ -405,7 +407,6 @@ const specs = await Promise.all(
     };
     if (!data.title || !data.lieu) return setMsg(msg, 'Le titre et le lieu sont obligatoires.');
     if (!data.pending && !data.date) return setMsg(msg, 'Indique la date d’observation.');
-    if (currentImg('planche') && !data.alt) return setMsg(msg, 'Décris le dessin de la planche.');
     save.disabled = true;
     try {
       const images: Record<string, object> = {};

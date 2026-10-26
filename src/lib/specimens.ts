@@ -12,6 +12,10 @@ export type Specimen = CollectionEntry<'specimens'>['data'];
 export const pad = (n: number) => String(n).padStart(3, '0');
 export const plancheUrl = (n: number) => `/specimen/${n}/`;
 export const ficheUrl = (n: number) => `/specimen/${n}/fiche/`;
+/** Texte alternatif de la planche (description saisie, sinon titre). */
+export const altFor = (s: Specimen) => s.alt || `Planche n°${s.n} : ${s.title}`;
+/** Texte affiché, découpé en paragraphes. */
+export const paragraphs = (t?: string) => (t ?? '').split(/\n+/).map((p) => p.trim()).filter(Boolean);
 export const hasFiche = (s: Specimen) => s.series === 'metro' && !s.pending && !!s.fiche;
 
 /** Tous les spécimens, du n°1 au plus récent. */

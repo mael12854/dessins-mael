@@ -23,7 +23,7 @@ const pad = (n: number) => String(n).padStart(3, '0');
 const slug = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[’']/g, '-').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
 const q = (s: string) => JSON.stringify(s); // chaîne YAML entre guillemets
-const str = (v: unknown, max = 600) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+const str = (v: unknown, max = 600) => (typeof v === 'string' ? v.replace(/\r\n?/g, '\n').trim().slice(0, max) : '');
 const folderOk = (f: unknown): f is string => typeof f === 'string' && /^[a-z0-9-]+$/.test(f);
 const blobOk = (b: unknown): b is string => typeof b === 'string' && /^[0-9a-f]{40}$/.test(b);
 const extOk = (e: unknown): e is string => typeof e === 'string' && /^(jpg|png|webp)$/.test(e);
@@ -34,13 +34,16 @@ function buildMarkdown(d: any, img: Record<ImgKey, string | null>): string {
   const L = ['---', `n: ${d.n}`, `series: ${d.series}`, `tech: ${d.tech}`, `title: ${q(d.title)}`];
   if (d.latin) L.push(`latin: ${q(d.latin)}`);
   L.push(`date: ${q(d.date)}`, `lieu: ${q(d.lieu)}`);
-  if (img.planche) L.push(`image: ./${img.planche}`, `alt: ${q(d.alt)}`);
+  if (img.planche) L.push(`image: ./${img.planche}`);
+  if (img.planche && d.alt) L.push(`alt: ${q(d.alt)}`);
+  if (d.texte) L.push(`texte: ${q(d.texte)}`);
   if (img.signature) L.push(`signature: ./${img.signature}`);
   if (d.pending) L.push('pending: true');
   if (d.fiche) {
     const f = d.fiche;
     L.push('fiche:');
-    if (img.espece) L.push(`  image: ./${img.espece}`, `  alt: ${q(f.alt)}`);
+    if (img.espece) L.push(`  image: ./${img.espece}`);
+    if (img.espece && f.alt) L.push(`  alt: ${q(f.alt)}`);
     L.push(`  habitat: ${q(f.habitat)}`, `  cri: ${q(f.cri)}`, `  rush: ${q(f.rush)}`, `  crush: ${q(f.crush)}`);
     if (f.annotations.length) {
       L.push('  annotations:');
@@ -61,6 +64,7 @@ function validate(raw: any) {
     date: str(raw?.date, 10),
     lieu: str(raw?.lieu, 120),
     alt: str(raw?.alt, 400),
+    texte: str(raw?.texte, 4000),
     pending: !!raw?.pending,
   };
   if (!Number.isInteger(d.n) || d.n < 1 || d.n > 9999) throw new HttpError(400, 'Numéro invalide.');
@@ -117,8 +121,6 @@ async function save(body: any) {
       img[k] = cur ? cur.name : null;
     }
   }
-  if (img.planche && !d.alt) throw new HttpError(400, 'Décris le dessin de la planche (texte alternatif).');
-  if (img.espece && !d.fiche?.alt) throw new HttpError(400, 'Décris le dessin de l’espèce (texte alternatif).');
 
   const unique = [...changes];
   unique.push({ path: `${SPEC_DIR}/${folder}/index.md`, content: buildMarkdown(d, img) });

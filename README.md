@@ -45,7 +45,8 @@ latin: "Somnolenta terminalis"
 date: "02.11.2026"         # JJ.MM.AAAA
 lieu: "rame"               # lieu générique, jamais d'adresse
 image: ./planche.jpg
-alt: "Une femme endormie contre la vitre, sac serré contre elle."   # obligatoire avec une image
+texte: "Quelques mots affichés sous la planche.\nUn retour à la ligne = un nouveau paragraphe."
+alt: "Une femme endormie contre la vitre, sac serré contre elle."   # facultatif, lu par les lecteurs d'écran (non affiché)
 signature: ./signature.png
 # pending: true            # affiche l'étiquette « en cours d'observation » au lieu de la planche
 fiche:                     # série métro uniquement

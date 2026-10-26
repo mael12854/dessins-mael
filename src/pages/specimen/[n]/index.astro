@@ -4,7 +4,7 @@ import Sheet from '../../../components/Sheet.astro';
 import PendingTag from '../../../components/PendingTag.astro';
 import Arrow from '../../../components/Arrow.astro';
 import { Image } from 'astro:assets';
-import { allSpecimens, pad, plancheUrl, ficheUrl, hasFiche, SERIES, TECH } from '../../../lib/specimens';
+import { allSpecimens, altFor, paragraphs, pad, plancheUrl, ficheUrl, hasFiche, SERIES, TECH } from '../../../lib/specimens';
 
 export async function getStaticPaths() {
   const all = await allSpecimens();
@@ -34,7 +34,7 @@ const { s, prev, next } = Astro.props;
       <div style="padding:14px 0;"><PendingTag n={s.n} /></div>
     ) : (
       <figure style="margin:0;display:flex;flex-direction:column;gap:8px;">
-        <Sheet image={s.image} alt={s.alt} eager />
+        <Sheet image={s.image} alt={altFor(s)} eager />
         <figcaption class="pad" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
           <span class="caption">planche n°{pad(s.n)} — {TECH[s.tech]}</span>
           {s.signature ? (
@@ -44,6 +44,10 @@ const { s, prev, next } = Astro.props;
           )}
         </figcaption>
       </figure>
+    )}
+
+    {paragraphs(s.texte).length > 0 && (
+      <div class="pad prose texte">{paragraphs(s.texte).map((p) => <p>{p}</p>)}</div>
     )}
 
     {hasFiche(s) && (

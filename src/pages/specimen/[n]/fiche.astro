@@ -40,7 +40,7 @@ const rubriques = [
 
     <figure style="margin:0;display:flex;flex-direction:column;gap:8px;">
       <div class="fiche-figure">
-        <Sheet image={fiche.image} alt={fiche.alt} ratio="r43" flat eager />
+        <Sheet image={fiche.image} alt={fiche.alt || `Dessin de l’espèce : ${s.title}`} ratio="r43" flat eager />
         {annots.map((a) => (
           <div class:list={['annot', a.right ? 'right' : 'left', a.top ? 'top' : 'bottom']} style={a.style}>
             {a.top && <span class="annot-text">{a.text}</span>}

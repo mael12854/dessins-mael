@@ -16,6 +16,7 @@ const specimens = defineCollection({
         lieu: z.string(),
         image: image().optional(),
         alt: z.string().optional(),
+        texte: z.string().max(4000).optional(),
         signature: image().optional(),
         pending: z.boolean().default(false),
         fiche: z
@@ -32,9 +33,7 @@ const specimens = defineCollection({
               .default([]),
           })
           .optional(),
-      })
-      .refine((s) => !s.image || !!s.alt, { message: 'Texte alternatif (alt) obligatoire quand il y a une image.' })
-      .refine((s) => !s.fiche?.image || !!s.fiche?.alt, { message: 'fiche.alt obligatoire quand la fiche a un dessin.' }),
+      }),
 });
 
 export const collections = { specimens };
