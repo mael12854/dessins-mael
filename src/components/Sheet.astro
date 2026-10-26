@@ -1,0 +1,31 @@
+---
+// Feuille claire : l'image scannée si elle existe, sinon un emplacement hachuré.
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+
+interface Props {
+  image?: ImageMetadata;
+  alt?: string;
+  ratio?: 'a4' | 'r43' | 'r11';
+  thumb?: boolean;
+  flat?: boolean;
+  eager?: boolean;
+  sizes?: string;
+  class?: string;
+}
+const { image, alt = '', ratio = 'a4', thumb = false, flat = false, eager = false, sizes = '(min-width: 560px) 560px, 100vw', class: cls } = Astro.props;
+---
+<div class:list={['sheet', ratio, { thumb, flat, hatch: !image }, cls]}>
+  {image && <span class="loading" aria-hidden="true">Mise sous verre…</span>}
+  {image && (
+    <Image
+      src={image}
+      alt={alt}
+      widths={[...new Set([600, 1200, 1800].filter((w) => w < image.width).concat(Math.min(image.width, 1800)))]}
+      sizes={sizes}
+      format="webp"
+      loading={eager ? 'eager' : 'lazy'}
+      fetchpriority={eager ? 'high' : undefined}
+    />
+  )}
+</div>

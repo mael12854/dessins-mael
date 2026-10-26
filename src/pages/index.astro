@@ -1,0 +1,53 @@
+---
+import Base from '../layouts/Base.astro';
+import Sheet from '../components/Sheet.astro';
+import PendingTag from '../components/PendingTag.astro';
+import Arrow from '../components/Arrow.astro';
+import Card from '../components/Card.astro';
+import { allSpecimens, pad, plancheUrl, SERIES, TECH } from '../lib/specimens';
+
+const byNew = (await allSpecimens()).reverse();
+const latest = byNew[0];
+const recent = byNew.slice(1, 5);
+---
+<Base>
+  {latest ? (
+    <section style="display:flex;flex-direction:column;gap:12px;padding-top:22px;">
+      <div class="pad" style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;">
+        <span class="label">Dernière observation</span>
+        <span class="meta" style="letter-spacing:.06em;color:var(--red);">N° {pad(latest.n)}</span>
+      </div>
+      {latest.pending ? (
+        <PendingTag n={latest.n} note />
+      ) : (
+        <a href={plancheUrl(latest.n)} style="display:flex;flex-direction:column;">
+          <Sheet image={latest.image} alt={latest.alt} eager />
+          <span class="caption pad" style="padding-top:8px;">planche n°{pad(latest.n)} — {TECH[latest.tech]}</span>
+        </a>
+      )}
+      <div class="pad" style="display:flex;flex-direction:column;gap:8px;padding-top:10px;">
+        <h1 class="hand title">{latest.title}</h1>
+        <span class="meta">{SERIES[latest.series]} · obs. le {latest.date} · {latest.lieu}</span>
+        <div class="hlinks">
+          {!latest.pending && (
+            <a href={plancheUrl(latest.n)} class="hlink"><span>observer de plus près</span><Arrow /></a>
+          )}
+          <a href="/collection/" class="hlink"><span>voir toute la collection</span><Arrow dir="right2" /></a>
+        </div>
+      </div>
+    </section>
+  ) : (
+    <section style="padding-top:22px;">
+      <PendingTag n={1} note />
+    </section>
+  )}
+
+  {recent.length > 0 && (
+    <section class="pad" style="display:flex;flex-direction:column;gap:14px;padding-top:44px;">
+      <h2 class="label" style="margin:0;font-weight:400;">Observés récemment</h2>
+      <div class="grid">
+        {recent.map((s) => <Card s={s} variant="recent" />)}
+      </div>
+    </section>
+  )}
+</Base>

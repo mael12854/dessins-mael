@@ -1,0 +1,15 @@
+---
+import Base from '../layouts/Base.astro';
+import Arrow from '../components/Arrow.astro';
+---
+<Base title="Spécimen introuvable">
+  <section class="pad" style="display:flex;flex-direction:column;gap:14px;padding-top:26px;">
+    <span class="label red">Erreur n°404</span>
+    <h1 class="hand display">Ce spécimen s’est échappé.</h1>
+    <p class="meta" style="margin:0;">Dernière position connue : inconnue.</p>
+    <div class="hlinks">
+      <a href="/" class="hlink"><span>retour à l’accueil</span><Arrow /></a>
+      <a href="/collection/" class="hlink"><span>voir toute la collection</span><Arrow dir="right2" /></a>
+    </div>
+  </section>
+</Base>

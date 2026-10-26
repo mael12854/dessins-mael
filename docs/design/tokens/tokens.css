@@ -1,0 +1,19 @@
+/* Spécimens — design tokens */
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Courier+Prime:wght@400;700&family=Shantell+Sans:ital,wght,BNCE,INFM@0,300..800,-100..100,0..100&display=swap');
+:root{
+  --paper:#FAF7F0; --sheet:#FFFDF8; --label:#F2EDE2;
+  --ink:#1A1816; --ink-2:#4A4640; --line:#8A847A; --hairline:#D9D3C7;
+  --red:#C23B30; --blue:#2F5DA8; --yellow:#F4D35E;
+  --bg:var(--paper); --fg:var(--ink); --fg-muted:var(--ink-2);
+  --font-hand:'Shantell Sans',cursive; --hand-settings:'BNCE' 60,'INFM' 80; --hand-settings-soft:'BNCE' 40,'INFM' 70; --hand-settings-note:'BNCE' 30,'INFM' 90;
+  --font-body:'Atkinson Hyperlegible',system-ui,sans-serif;
+  --font-label:'Courier Prime','Courier New',monospace;
+  --fs-display:34px; --fs-h1:32px; --fs-link:18px; --fs-rubric:17px; --fs-body:17px; --fs-small:15px; --fs-label:12px; --fs-caption:11px;
+  --lh-body:1.55; --lh-title:1.05;
+  --space-page:20px; --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:22px; --space-6:28px; --space-7:44px; --space-8:56px;
+  --radius-hand:255px 14px 225px 14px/14px 225px 14px 255px; --radius-hand-alt:14px 225px 14px 255px/225px 14px 255px 14px;
+  --stroke:2px; --stroke-thin:1.5px;
+  --shadow-sheet:0 1px 0 rgba(26,24,22,.08),0 10px 26px -16px rgba(26,24,22,.35);
+  --max-w:560px;
+}
+[data-theme="dark"]{ --bg:#1B1917; --fg:#F1ECE2; --fg-muted:#B9B2A6; --ink:#F1ECE2; --ink-2:#B9B2A6; --line:#6A645B; --label:#26231F; --red:#EC7A68; --blue:#93B2E8; /* --sheet stays light */ }

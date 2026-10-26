@@ -1,0 +1,24 @@
+---
+interface Props { active?: 'collection' | 'apropos' }
+const { active } = Astro.props;
+---
+<header class="site-header">
+  <a href="/" class="logo" aria-label="Spécimens — accueil">
+    <span class="hand logo-word">Spécimens</span>
+    <span class="logo-tag">Observations dessinées d’humains en milieu naturel</span>
+  </a>
+  <nav class="nav" aria-label="Menu">
+    <a href="/collection/" class="nav-link" aria-current={active === 'collection' ? 'page' : undefined}>
+      <span>la collection</span>
+      <span class="nav-line"><svg width="100%" height="7" viewBox="0 0 100 7" preserveAspectRatio="none" aria-hidden="true" style="display:block"><path d="M1 4 C 14 1.5, 24 6, 38 3.5 S 62 2, 74 4.5 S 92 5.5, 99 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" vector-effect="non-scaling-stroke"></path></svg></span>
+    </a>
+    <a href="/a-propos/" class="nav-link" aria-current={active === 'apropos' ? 'page' : undefined}>
+      <span>à propos</span>
+      <span class="nav-line"><svg width="100%" height="7" viewBox="0 0 100 7" preserveAspectRatio="none" aria-hidden="true" style="display:block"><path d="M1 3 C 12 5.5, 26 1.5, 40 4 S 66 5.5, 78 2.5 S 94 3, 99 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" vector-effect="non-scaling-stroke"></path></svg></span>
+    </a>
+    <button type="button" class="theme-toggle" data-theme-toggle aria-label="Changer de mode (jour / nuit)">
+      <span class="theme-dot"></span>
+      <span class="when-light">nuit</span><span class="when-dark">jour</span>
+    </button>
+  </nav>
+</header>

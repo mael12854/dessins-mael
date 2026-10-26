@@ -1,0 +1,34 @@
+/* Spécimens — design tokens (repris du handoff Claude Design) */
+:root {
+  --paper: #FAF7F0; --sheet: #FFFDF8; --label: #F2EDE2;
+  --ink: #1A1816; --ink-2: #4A4640; --line: #8A847A; --hairline: #D9D3C7;
+  --red: #C23B30; --blue: #2F5DA8; --yellow: #F4D35E;
+  --bg: var(--paper);
+
+  --font-hand: 'Shantell Sans Variable', 'Shantell Sans', cursive;
+  --hand-settings: 'BNCE' 60, 'INFM' 80;
+  --hand-settings-soft: 'BNCE' 40, 'INFM' 70;
+  --hand-settings-note: 'BNCE' 30, 'INFM' 90;
+  --font-body: 'Atkinson Hyperlegible', system-ui, sans-serif;
+  --font-label: 'Courier Prime', 'Courier New', monospace;
+
+  --fs-display: 34px; --fs-h1: 32px; --fs-link: 18px; --fs-rubric: 17px; --fs-body: 17px;
+  --fs-small: 15px; --fs-label: 12px; --fs-caption: 11px;
+  --lh-body: 1.55; --lh-title: 1.05;
+
+  --space-page: 20px;
+  --radius-hand: 255px 14px 225px 14px / 14px 225px 14px 255px;
+  --radius-hand-alt: 14px 225px 14px 255px / 225px 14px 255px 14px;
+  --radius-chip: 255px 12px 225px 12px / 12px 225px 12px 255px;
+  --shadow-sheet: 0 1px 0 rgba(26, 24, 22, .08), 0 10px 26px -16px rgba(26, 24, 22, .35);
+  --shadow-thumb: 0 1px 0 rgba(26, 24, 22, .08), 0 8px 18px -12px rgba(26, 24, 22, .35);
+  --max-w: 560px;
+  color-scheme: light;
+}
+
+/* Mode nuit : les planches (--sheet) restent claires. */
+:root[data-theme='dark'] {
+  --bg: #1B1917; --ink: #F1ECE2; --ink-2: #B9B2A6; --line: #6A645B;
+  --label: #26231F; --red: #EC7A68; --blue: #93B2E8;
+  color-scheme: dark;
+}

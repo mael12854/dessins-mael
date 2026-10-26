@@ -1,0 +1,12 @@
+---
+// Flèches dessinées à la main (chemins repris des maquettes).
+interface Props { dir?: 'right' | 'right2' | 'left'; width?: number }
+const { dir = 'right', width } = Astro.props;
+const paths = {
+  right: { vb: '0 0 26 12', w: 26, d: 'M1 7 C 8 4, 15 8, 23 5.5 M17 1 L24 5.5 L18 11' },
+  right2: { vb: '0 0 26 12', w: 26, d: 'M1 6 C 9 7.5, 15 4, 23 6 M17 1.5 L24 6 L18 11' },
+  left: { vb: '0 0 28 12', w: 28, d: 'M27 6 C 19 4, 12 8, 4 5.5 M10 1 L3 5.5 L9 11' },
+};
+const p = paths[dir];
+---
+<svg width={width ?? p.w} height="12" viewBox={p.vb} aria-hidden="true"><path d={p.d} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>

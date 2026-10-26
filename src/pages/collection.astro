@@ -1,0 +1,60 @@
+---
+import Base from '../layouts/Base.astro';
+import Card from '../components/Card.astro';
+import { allSpecimens, SERIES } from '../lib/specimens';
+
+const byNew = (await allSpecimens()).reverse();
+const count = (k: number) => `${k} spécimen${k > 1 ? 's' : ''} sous verre`;
+const chips = [['all', 'tout'], ['metro', SERIES.metro], ['hs', SERIES.hs]] as const;
+---
+<Base title="La collection" active="collection">
+  <section class="pad" style="display:flex;flex-direction:column;gap:18px;padding-top:26px;">
+    <div style="position:relative;display:flex;flex-direction:column;gap:4px;">
+      <h1 class="hand display">La collection</h1>
+      <span class="meta" data-count aria-live="polite">{count(byNew.length)}</span>
+      <span class="hand tagadac" aria-hidden="true">Tagadac</span>
+    </div>
+
+    <div class="chips" role="group" aria-label="Filtrer par série">
+      {chips.map(([id, label]) => (
+        <button type="button" class="chip" data-filter={id} aria-pressed={id === 'all' ? 'true' : 'false'}>
+          <span class="chip-dot"></span><span>{label}</span>
+        </button>
+      ))}
+    </div>
+
+    <p class="empty" data-empty hidden={byNew.length > 0}>Aucun spécimen observé dans cet habitat pour l’instant.</p>
+
+    <div class="grid coll" data-grid>
+      {byNew.map((s) => <Card s={s} variant="collection" />)}
+    </div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      var chips = document.querySelectorAll('[data-filter]');
+      var cards = document.querySelectorAll('[data-grid] > [data-series]');
+      var countEl = document.querySelector('[data-count]');
+      var empty = document.querySelector('[data-empty]');
+      function apply(f) {
+        var k = 0;
+        cards.forEach(function (c) {
+          var show = f === 'all' || c.dataset.series === f;
+          c.hidden = !show;
+          if (show) k++;
+        });
+        chips.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.filter === f)); });
+        countEl.textContent = k + ' spécimen' + (k > 1 ? 's' : '') + ' sous verre';
+        empty.hidden = k > 0;
+      }
+      chips.forEach(function (b) {
+        b.addEventListener('click', function () {
+          apply(b.dataset.filter);
+          history.replaceState(null, '', b.dataset.filter === 'all' ? location.pathname : '?serie=' + b.dataset.filter);
+        });
+      });
+      var q = new URLSearchParams(location.search).get('serie');
+      if (q === 'metro' || q === 'hs') apply(q);
+    })();
+  </script>
+</Base>

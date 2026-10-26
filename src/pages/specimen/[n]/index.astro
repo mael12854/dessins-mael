@@ -1,0 +1,74 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Sheet from '../../../components/Sheet.astro';
+import PendingTag from '../../../components/PendingTag.astro';
+import Arrow from '../../../components/Arrow.astro';
+import { Image } from 'astro:assets';
+import { allSpecimens, pad, plancheUrl, ficheUrl, hasFiche, SERIES, TECH } from '../../../lib/specimens';
+
+export async function getStaticPaths() {
+  const all = await allSpecimens();
+  return all.map((s, i) => ({
+    params: { n: String(s.n) },
+    props: { s, prev: all[i - 1], next: all[i + 1] },
+  }));
+}
+const { s, prev, next } = Astro.props;
+---
+<Base title={`Spécimen n°${s.n} — ${s.title}`}>
+  <section style="display:flex;flex-direction:column;gap:16px;padding-top:26px;">
+    <div class="pad" style="display:flex;flex-direction:column;align-items:flex-start;">
+      <div class="cartouche">
+        <svg width="100%" height="20" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true"><path d="M50 2 L3 20 M50 2 L97 20" fill="none" stroke="currentColor" stroke-width="1.2" vector-effect="non-scaling-stroke"></path></svg>
+        <div class="hand cartouche-box">{SERIES[s.series]}</div>
+      </div>
+    </div>
+
+    <div class="pad" style="display:flex;flex-direction:column;gap:6px;padding-top:4px;">
+      <span class="label red" style="font-size:13px;letter-spacing:.06em;">Spécimen n°{s.n}</span>
+      <h1 class="hand title">{s.title}</h1>
+      <span class="meta">obs. le {s.date} · {s.lieu}</span>
+    </div>
+
+    {s.pending ? (
+      <div style="padding:14px 0;"><PendingTag n={s.n} /></div>
+    ) : (
+      <figure style="margin:0;display:flex;flex-direction:column;gap:8px;">
+        <Sheet image={s.image} alt={s.alt} eager />
+        <figcaption class="pad" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+          <span class="caption">planche n°{pad(s.n)} — {TECH[s.tech]}</span>
+          {s.signature ? (
+            <Image src={s.signature} alt="signature" class="signature-img" width={184} format="webp" />
+          ) : (
+            <span class="signature-slot" aria-hidden="true">signature<br />n°{s.n}</span>
+          )}
+        </figcaption>
+      </figure>
+    )}
+
+    {hasFiche(s) && (
+      <div class="pad" style="padding-top:4px;">
+        <a href={ficheUrl(s.n)} class="hlink"><span>lire la fiche espèce</span><Arrow /></a>
+      </div>
+    )}
+
+    <nav class="prevnext" aria-label="Spécimens voisins">
+      {prev ? (
+        <a href={plancheUrl(prev.n)} class="pn" rel="prev">
+          <Arrow dir="left" />
+          <span>spécimen précédent</span>
+        </a>
+      ) : (
+        <div class="pn end">premier spécimen connu</div>
+      )}
+      {next ? (
+        <a href={plancheUrl(next.n)} class="pn next" rel="next">
+          <svg width="28" height="12" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 7 C 9 4, 16 8, 24 5.5 M18 1 L25 5.5 L19 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span>spécimen suivant</span>
+        </a>
+      ) : (
+        <div class="pn next end">dernier spécimen observé</div>
+      )}
+    </nav>
+  </section>
+</Base>

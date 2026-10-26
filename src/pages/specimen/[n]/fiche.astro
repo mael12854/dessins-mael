@@ -1,0 +1,75 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Sheet from '../../../components/Sheet.astro';
+import Arrow from '../../../components/Arrow.astro';
+import { allSpecimens, plancheUrl, hasFiche } from '../../../lib/specimens';
+
+export async function getStaticPaths() {
+  const all = await allSpecimens();
+  return all.filter(hasFiche).map((s) => ({ params: { n: String(s.n) }, props: { s } }));
+}
+const { s } = Astro.props;
+const fiche = s.fiche!;
+
+// Annotation : position en % ; la flèche pointe vers le centre du dessin.
+const annots = fiche.annotations.map((a) => {
+  const right = a.x >= 50;
+  const top = a.y < 50;
+  const style = [
+    right ? `right:${100 - a.x}%` : `left:${a.x}%`,
+    top ? `top:${a.y}%` : `bottom:${100 - a.y}%`,
+  ].join(';');
+  return { ...a, right, top, style };
+});
+const rubriques = [
+  ['a.', 'Habitat', fiche.habitat],
+  ['b.', 'Cri', fiche.cri],
+  ['c.', 'Comportement en période de rush', fiche.rush],
+  ['d.', 'Comportement en période de crush', fiche.crush],
+];
+---
+<Base title={`Fiche espèce — ${s.title}`}>
+  <section class="pad" style="display:flex;flex-direction:column;gap:18px;padding-top:24px;">
+    <a href={plancheUrl(s.n)} class="hlink small" style="align-self:flex-start;"><Arrow dir="left" width={22} /><span>retour à la planche</span></a>
+
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <span class="label red">Fiche espèce · spécimen n°{s.n}</span>
+      <h1 class="hand display">{s.title}</h1>
+      {s.latin && <span style="font-style:italic;font-size:17px;color:var(--ink-2);" lang="la">{s.latin}</span>}
+    </div>
+
+    <figure style="margin:0;display:flex;flex-direction:column;gap:8px;">
+      <div class="fiche-figure">
+        <Sheet image={fiche.image} alt={fiche.alt} ratio="r43" flat eager />
+        {annots.map((a) => (
+          <div class:list={['annot', a.right ? 'right' : 'left', a.top ? 'top' : 'bottom']} style={a.style}>
+            {a.top && <span class="annot-text">{a.text}</span>}
+            {a.top && a.right && (
+              <svg width="40" height="34" viewBox="0 0 40 34" aria-hidden="true"><path d="M30 2 C 28 16, 18 26, 4 30 M12 24 L3 30 L12 33" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            )}
+            {a.top && !a.right && (
+              <svg width="40" height="34" viewBox="0 0 40 34" aria-hidden="true"><path d="M10 2 C 12 16, 22 26, 36 30 M28 24 L37 30 L28 33" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            )}
+            {!a.top && !a.right && (
+              <svg width="40" height="30" viewBox="0 0 40 30" aria-hidden="true"><path d="M6 28 C 10 14, 22 6, 36 4 M28 0 L37 4 L29 9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            )}
+            {!a.top && a.right && (
+              <svg width="40" height="30" viewBox="0 0 40 30" aria-hidden="true"><path d="M34 28 C 30 14, 18 6, 4 4 M12 0 L3 4 L11 9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            )}
+            {!a.top && <span class="annot-text">{a.text}</span>}
+          </div>
+        ))}
+      </div>
+      <figcaption class="caption">dessin de l’espèce — annotations en bleu stylo</figcaption>
+    </figure>
+
+    <dl class="rubriques">
+      {rubriques.map(([letter, name, text]) => (
+        <div>
+          <dt class="hand"><span class="letter">{letter}</span>{name}</dt>
+          <dd>{text}</dd>
+        </div>
+      ))}
+    </dl>
+  </section>
+</Base>

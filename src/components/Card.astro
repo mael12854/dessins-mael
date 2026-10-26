@@ -1,0 +1,26 @@
+---
+import Sheet from './Sheet.astro';
+import { pad, plancheUrl, type Specimen } from '../lib/specimens';
+
+interface Props { s: Specimen; variant: 'recent' | 'collection' }
+const { s, variant } = Astro.props;
+const sizes = '(min-width: 560px) 260px, 45vw';
+---
+<a href={plancheUrl(s.n)} class="card" data-series={s.series}>
+  {variant === 'recent' ? (
+    <>
+      <Sheet image={s.pending ? undefined : s.image} alt={s.alt} thumb sizes={sizes} />
+      <span class="card-num">N° {pad(s.n)}</span>
+      <span class="hand card-title">{s.title}</span>
+    </>
+  ) : (
+    <>
+      <div class="card-tagwrap">
+        <Sheet image={s.pending ? undefined : s.image} alt={s.alt} thumb sizes={sizes} />
+        <span class="card-tag">N° {pad(s.n)}</span>
+      </div>
+      <span class="hand card-title">{s.title}</span>
+      <span class="caption">{s.pending ? 'en cours d’observation' : s.date}</span>
+    </>
+  )}
+</a>

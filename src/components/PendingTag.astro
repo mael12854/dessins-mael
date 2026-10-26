@@ -1,0 +1,17 @@
+---
+interface Props { n: number; note?: boolean }
+const { n, note = false } = Astro.props;
+---
+<div class="pending">
+  {note && (
+    <div class="pending-note" aria-hidden="true">
+      <span class="note">le feutre chauffe</span>
+      <svg width="46" height="30" viewBox="0 0 46 30"><path d="M3 2 C 8 18, 22 26, 42 24 M34 18 L43 24 L35 29" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    </div>
+  )}
+  <div class="tag">
+    <span class="tag-eyelet"></span>
+    <span class="hand tag-title">Spécimen n°{n}</span>
+    <span class="tag-sub">— en cours d’observation</span>
+  </div>
+</div>
