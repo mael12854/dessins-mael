@@ -15,10 +15,23 @@ const signature = find('signature');
     <span class="label red">Spécimen n°0</span>
     <h1 class="hand display">L’observateur</h1>
     <figure style="margin:0;display:flex;flex-direction:column;gap:8px;">
-      <div class="portrait">
-        <Sheet image={portrait} alt="Autoportrait dessiné, de dos, carnet à la main" ratio="r11" flat eager sizes="260px" />
-      </div>
-      <figcaption class="caption">autoportrait dessiné — de dos, carnet à la main</figcaption>
+      {portrait ? (
+        <div class="sheet" style="margin:0 -20px;">
+          <Image
+            src={portrait}
+            alt="Autoportrait dessiné : l’auteur, de dos, cheveux bouclés, fredonne « tralalère » en mettant un dessin en ligne avec son téléphone."
+            widths={[600, Math.min(portrait.width, 1200)]}
+            sizes="(min-width: 560px) 560px, 100vw"
+            format="webp"
+            loading="eager"
+          />
+        </div>
+      ) : (
+        <div class="portrait">
+          <Sheet alt="" ratio="r11" flat sizes="260px" />
+        </div>
+      )}
+      <figcaption class="caption">autoportrait dessiné — de dos, en pleine mise en ligne</figcaption>
     </figure>
     <p>Je dessine les gens que je croise, sur le vif, au feutre noir. Je ne les dérange pas. Ils ne savent pas qu’ils font partie d’une collection.</p>
     <p>Bienvenue dans la collection. L’entrée est libre, il n’y a pas de gardien et on peut rester aussi longtemps qu’on veut. Pas de commentaires ici : regarde, souris si ça te dit, et repasse de temps en temps, de nouveaux spécimens arrivent régulièrement.</p>
