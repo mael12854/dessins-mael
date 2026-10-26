@@ -1,7 +1,7 @@
 # Spécimens
 
 *Observations dessinées d’humains en milieu naturel.*
-Blog BD privé, pensé d’abord pour le téléphone. Site statique fait avec [Astro](https://astro.build) : pas de base de données, pas de comptes, pas de commentaires, pas d’analytics.
+Blog BD, pensé d’abord pour le téléphone. Site statique fait avec [Astro](https://astro.build) : pas de base de données, pas de comptes, pas de commentaires, pas d’analytics.
 
 ## Ajouter un spécimen
 
@@ -62,7 +62,9 @@ npm run build    # site statique dans dist/
 
 Sur Vercel : importer ce dépôt, Vercel détecte Astro tout seul. Chaque push sur `main` republie le site.
 
-Confidentialité : `noindex,nofollow` sur toutes les pages (balise + en-tête HTTP), `robots.txt` qui interdit tout, aucun traceur, polices auto-hébergées (aucun appel à Google). Le site reste accessible à quiconque a le lien. Pour un mot de passe, activer la protection par mot de passe de Vercel (offre payante) ou demander un petit middleware.
+Référencement : le site est public et indexable par Google. `robots.txt` autorise tout et pointe vers le sitemap (`/sitemap-index.xml`, généré au build). Chaque page a une description et une URL canonique. Si l'adresse du site change (nom de domaine perso), modifier `site` dans `astro.config.mjs` et la ligne `Sitemap:` de `public/robots.txt`.
+
+Aucun traceur, polices auto-hébergées (aucun appel à Google Fonts).
 
 ## Design
 

@@ -10,18 +10,30 @@ import Footer from '../components/Footer.astro';
 
 interface Props {
   title?: string;
+  description?: string;
   active?: 'collection' | 'apropos';
+  noindex?: boolean;
 }
-const { title, active } = Astro.props;
+const { title, description, active, noindex = false } = Astro.props;
 const fullTitle = title ? `${title} — Spécimens` : 'Spécimens — Observations dessinées d’humains en milieu naturel';
+const desc = description ?? 'Spécimens : un blog BD. Observations dessinées au feutre noir d’humains en milieu naturel, à commencer par la vie des gens du métro.';
+const canonical = new URL(Astro.url.pathname, Astro.site);
 ---
 <!doctype html>
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="robots" content="noindex,nofollow" />
-    <meta name="referrer" content="no-referrer" />
+    {noindex && <meta name="robots" content="noindex" />}
+    <meta name="description" content={desc} />
+    <link rel="canonical" href={canonical} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Spécimens" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={desc} />
+    <meta property="og:url" content={canonical} />
     <meta name="theme-color" content="#FAF7F0" />
     <title>{fullTitle}</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />

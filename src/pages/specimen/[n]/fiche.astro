@@ -28,7 +28,7 @@ const rubriques = [
   ['d.', 'Comportement en période de crush', fiche.crush],
 ];
 ---
-<Base title={`Fiche espèce — ${s.title}`}>
+<Base title={`Fiche espèce — ${s.title}`} description={`Fiche espèce : ${s.title}${s.latin ? ` (${s.latin})` : ''}. Habitat : ${fiche.habitat}`}>
   <section class="pad" style="display:flex;flex-direction:column;gap:18px;padding-top:24px;">
     <a href={plancheUrl(s.n)} class="hlink small" style="align-self:flex-start;"><Arrow dir="left" width={22} /><span>retour à la planche</span></a>
 

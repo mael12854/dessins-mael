@@ -15,7 +15,7 @@ export async function getStaticPaths() {
 }
 const { s, prev, next } = Astro.props;
 ---
-<Base title={`Spécimen n°${s.n} — ${s.title}`}>
+<Base title={`Spécimen n°${s.n} — ${s.title}`} description={`${s.title} : spécimen n°${s.n} de la série « ${SERIES[s.series]} », dessiné ${s.tech === 'numerique' ? 'sur ordinateur' : 'au feutre noir'}. Observé ${s.pending ? 'en ce moment' : `le ${s.date}`}, ${s.lieu}.`}>
   <section style="display:flex;flex-direction:column;gap:16px;padding-top:26px;">
     <div class="pad" style="display:flex;flex-direction:column;align-items:flex-start;">
       <div class="cartouche">
