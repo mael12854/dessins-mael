@@ -13,8 +13,10 @@ interface Props {
   description?: string;
   active?: 'collection' | 'apropos';
   noindex?: boolean;
+  /** Page plein écran sans en-tête ni pied de page (Studio). */
+  bare?: boolean;
 }
-const { title, description, active, noindex = false } = Astro.props;
+const { title, description, active, noindex = false, bare = false } = Astro.props;
 const fullTitle = title ? `${title} — Spécimens` : 'Spécimens — Observations dessinées d’humains en milieu naturel';
 const desc = description ?? 'Spécimens : un blog BD. Observations dessinées au feutre noir d’humains en milieu naturel, à commencer par la vie des gens du métro.';
 const canonical = new URL(Astro.url.pathname, Astro.site);
@@ -42,12 +44,14 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   </head>
   <body>
-    <div class="page">
-      <Header active={active} />
-      <main>
-        <slot />
-      </main>
-      <Footer />
-    </div>
+    {bare ? <slot /> : (
+      <div class="page">
+        <Header active={active} />
+        <main>
+          <slot />
+        </main>
+        <Footer />
+      </div>
+    )}
   </body>
 </html>

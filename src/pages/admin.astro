@@ -43,6 +43,7 @@ const specs = await Promise.all(
       <p class="msg ok" data-flash hidden></p>
       <div class="row">
         <button class="btn" type="button" data-new>+ Nouveau spécimen</button>
+        <a class="btn ghost" href="/admin/studio">Studio</a>
         <button class="btn ghost" type="button" data-open-series>Séries</button>
         <button class="btn ghost" type="button" data-logout>Se déconnecter</button>
       </div>
@@ -97,6 +98,7 @@ const specs = await Promise.all(
           <img alt="" hidden />
           <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir le scan</label>
           <button class="btn ghost" type="button" data-remove hidden>Enlever l’image</button>
+          <a class="btn ghost" data-studio-link hidden>Retoucher dans le Studio</a>
         </div>
         <label class="field"><span class="field-label">Texte affiché sous la planche <em>(facultatif)</em></span><textarea name="texte" rows="5" maxlength="4000" placeholder="Quelques mots sur ce spécimen…"></textarea></label>
         <label class="field"><span class="field-label">Description de l’image pour les personnes malvoyantes <em>(facultatif, non affichée)</em></span><textarea name="alt" rows="2" maxlength="400" placeholder="Un homme endormi contre la vitre…"></textarea></label>
@@ -116,6 +118,7 @@ const specs = await Promise.all(
             <div class="annot-stage"><img alt="" hidden /><div data-markers></div></div>
             <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir le dessin de l’espèce</label>
             <button class="btn ghost" type="button" data-remove hidden>Enlever l’image</button>
+            <a class="btn ghost" data-studio-link hidden>Retoucher dans le Studio</a>
           </div>
           <label class="field"><span class="field-label">Description de l’image pour les personnes malvoyantes <em>(facultatif, non affichée)</em></span><textarea name="ficheAlt" rows="2" maxlength="400"></textarea></label>
           <label class="field"><span class="field-label">a. Habitat</span><textarea name="habitat" rows="2"></textarea></label>
@@ -207,6 +210,8 @@ const specs = await Promise.all(
 </style>
 
 <script>
+  import { cleanCanvas } from '../lib/clean-paper';
+  import { clearHandoff, getHandoff, type Handoff } from '../lib/studio-db';
   type Img = { planche: string | null; signature: string | null; espece: string | null };
   type Annot = { text: string; x: number; y: number };
   type Spec = {
@@ -251,6 +256,24 @@ const specs = await Promise.all(
     try { sessionStorage.setItem('admin-code', c); } catch {}
     $('[data-nogithub]').hidden = r.github;
     renderList(); show('list');
+    pickStudioImage();
+  }
+
+  // Image préparée dans le Studio : on l'ajoute au formulaire, sans rien publier.
+  async function pickStudioImage() {
+    let h: Handoff | undefined;
+    try { h = await getHandoff(); } catch { return; }
+    if (!h) return;
+    await clearHandoff();
+    const target = h.folder ? specs.find((s) => s.folder === h!.folder) ?? null : null;
+    openForm(target);
+    const mime = h.ext === 'png' ? 'image/png' : h.ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    newImg[h.slot] = { base64: h.base64, ext: h.ext, url: `data:${mime};base64,${h.base64}` };
+    removeImg[h.slot] = false;
+    if (h.slot === 'espece') { F('hasFiche').checked = true; sync(); }
+    renderImg(h.slot);
+    setMsg($('[data-form-msg]'), `Image venant du Studio (${h.width} × ${h.height} px, ${h.ext.toUpperCase()}). Vérifie les informations puis « Enregistrer » pour publier.`, true);
+    history.replaceState(null, '', location.pathname);
   }
   function logout() {
     code = '';
@@ -319,7 +342,7 @@ const specs = await Promise.all(
     F('pending').checked = !!s?.pending;
     F('alt').value = s?.alt ?? '';
     F('texte').value = s?.texte ?? '';
-    F('hasFiche').checked = s ? !!s.fiche : true;
+    F('hasFiche').checked = !!s?.fiche;
     F('ficheAlt').value = s?.fiche?.alt ?? '';
     for (const k of ['habitat', 'cri', 'rush', 'crush'] as const) F(k).value = s?.fiche?.[k] ?? '';
     annots = s?.fiche?.annotations.map((a) => ({ ...a })) ?? [];
@@ -348,37 +371,16 @@ const specs = await Promise.all(
     const url = currentImg(k);
     img.hidden = !url; if (url) img.src = url; else img.removeAttribute('src');
     $('[data-remove]', box).hidden = !url;
+    const studio = box.querySelector<HTMLAnchorElement>('[data-studio-link]');
+    if (studio) {
+      const canEdit = !!editing && !!editing.img[k] && !newImg[k] && !removeImg[k];
+      studio.hidden = !canEdit;
+      if (canEdit) studio.href = `/admin/studio?from=${encodeURIComponent(editing!.folder)}&slot=${k}`;
+    }
     if (k === 'espece') renderMarkers();
   }
 
   // Réduit l'image dans le navigateur avant l'envoi (≤ 2400 px, JPEG ; PNG pour la signature).
-  // Blanchit le papier et fonce les traits (le papier = la teinte la plus fréquente).
-  // Pour la signature, le papier devient transparent et le trait noir feutre.
-  function cleanPaper(ctx: CanvasRenderingContext2D, w: number, h: number, transparent: boolean) {
-    const im = ctx.getImageData(0, 0, w, h);
-    const d = im.data;
-    const n = w * h;
-    const hist = new Uint32Array(256);
-    for (let i = 0; i < d.length; i += 4) hist[(d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0]++;
-    let acc = 0, paper = 255;
-    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= n * 0.6) { paper = v; break; } }
-    paper = Math.max(paper, 120);
-    const curve = new Uint8ClampedArray(256);
-    for (let v = 0; v < 256; v++) { const x = v / paper; curve[v] = x >= 0.86 ? 255 : 255 * Math.pow(x / 0.86, 1.8); }
-    // Bords du scan (ombre du scanner) : blanchis sur 0,8 %.
-    const m = transparent ? 0 : Math.round(Math.max(w, h) * 0.008);
-    for (let i = 0; i < d.length; i += 4) {
-      const p = i / 4, px = p % w, py = (p / w) | 0;
-      if (px < m || py < m || px >= w - m || py >= h - m) { d[i] = d[i + 1] = d[i + 2] = 255; continue; }
-      const r = curve[d[i]], g = curve[d[i + 1]], b = curve[d[i + 2]];
-      if (transparent) {
-        const lum = (r * 299 + g * 587 + b * 114) / 1000;
-        d[i] = 0x1a; d[i + 1] = 0x18; d[i + 2] = 0x16; d[i + 3] = Math.min(d[i + 3], 255 - lum);
-      } else { d[i] = r; d[i + 1] = g; d[i + 2] = b; }
-    }
-    ctx.putImageData(im, 0, 0);
-  }
-
   async function shrink(file: File, k: ImgKey) {
     const max = k === 'signature' ? 600 : 2400;
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
@@ -389,7 +391,7 @@ const specs = await Promise.all(
     const png = k === 'signature';
     if (!png) { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height); }
     ctx.drawImage(bmp, 0, 0, c.width, c.height);
-    cleanPaper(ctx, c.width, c.height, png);
+    cleanCanvas(ctx, c.width, c.height, png);
     const type = png ? 'image/png' : 'image/jpeg';
     const url = c.toDataURL(type, 0.88);
     return { base64: url.split(',')[1], ext: png ? 'png' : 'jpg', url };

@@ -22,6 +22,18 @@ Les séries (nom, ordre, fiche espèce ou non) se gèrent dans l’admin, bouton
 
 Après un changement de variable, redéployer le site (Vercel → Deployments → Redeploy).
 
+### Spécimens Studio : `/admin/studio`
+
+Éditeur de planches intégré à l'admin (même code d'accès). On importe un dessin, puis on ajoute des textes, des bulles (ovale, carrée, pensée, avec queue orientable) et des flèches d'annotation. Le Studio propose aussi le zoom, le déplacement, la comparaison original / nettoyé, les calques et annuler / rétablir. Il marche à la souris comme au doigt.
+
+- **Fichier original intact** : le nettoyage du fond (le même que celui de l'admin, `src/lib/clean-paper.ts`) et les textes ne sont appliqués qu'à l'image finale.
+- **Brouillons** : enregistrés automatiquement dans le navigateur (IndexedDB), avec le fichier original, et retrouvés après un rechargement. Ils restent sur l'appareil utilisé : le dépôt étant public, ils ne sont pas envoyés sur GitHub.
+- **Export** : « PNG » télécharge l'image finale à la taille exacte du dessin.
+- **Publication** : « Publier… » montre l'aperçu, puis ouvre le formulaire de l'admin avec l'image (nouveau spécimen, ou planche / dessin de fiche d'un spécimen existant). Rien n'est publié avant « Enregistrer ». L'image part en PNG sans perte si elle tient dans la limite d'envoi de Vercel (~3 Mo) ; sinon en JPEG haute qualité, puis réduite si besoin (le message l'indique).
+- Depuis la fiche d'un spécimen dans l'admin, « Retoucher dans le Studio » rouvre le dessin publié.
+
+Raccourcis : V sélection, T texte, B bulle, R bulle carrée, P pensée, A flèche, Suppr, Ctrl+Z / Ctrl+Maj+Z, Ctrl+D dupliquer, flèches pour déplacer, + / − / 0 / 1 pour le zoom, Entrée pour modifier le texte. Ils sont désactivés pendant la saisie.
+
 ### À la main
 
 Chaque spécimen est un dossier dans `specimens/`, avec un fichier `index.md` et ses images à côté :

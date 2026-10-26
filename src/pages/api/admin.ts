@@ -8,7 +8,7 @@ export const prerender = false;
 const SPEC_DIR = 'specimens';
 const IMG_KEYS = ['planche', 'espece', 'signature'] as const;
 type ImgKey = (typeof IMG_KEYS)[number];
-const MAX_BLOB = 3_000_000; // base64, ~2,2 Mo d'image
+const MAX_BLOB = 4_200_000; // base64, ~3,1 Mo d'image (limite d'une requête Vercel : 4,5 Mo)
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });

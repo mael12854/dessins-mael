@@ -1,0 +1,297 @@
+---
+// Spécimens Studio : éditeur de planches (textes, bulles, flèches) intégré à l'admin.
+import Base from '../../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+import { SERIES_LIST } from '../../lib/specimens';
+
+// Spécimens publiés (pour rouvrir un dessin et choisir où publier).
+const entries = (await getCollection('specimens')).sort((a, b) => b.data.n - a.data.n);
+const specs = entries.map(({ id, data: d }) => ({
+  folder: id, n: d.n, title: d.title,
+  fiche: !!SERIES_LIST.find((x) => x.id === d.series)?.fiche,
+  orig: { planche: d.image?.src ?? null, espece: d.fiche?.image?.src ?? null },
+}));
+
+const icon = (d: string) => `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const tools = [
+  { id: 'select', label: 'Sélection', key: 'V', svg: icon('<path d="M5 3l14 8-6 1.5L10 19z"/>') },
+  { id: 'text', label: 'Texte', key: 'T', svg: icon('<path d="M5 6V4h14v2M12 4v16M9 20h6"/>') },
+  { id: 'bubble-oval', label: 'Bulle', key: 'B', svg: icon('<ellipse cx="12" cy="10" rx="9" ry="6"/><path d="M8 15l-2 5 6-4"/>') },
+  { id: 'bubble-rect', label: 'Bulle carrée', key: 'R', svg: icon('<rect x="3" y="4" width="18" height="12" rx="2.5"/><path d="M8 16l-2 4 5-4"/>') },
+  { id: 'bubble-thought', label: 'Pensée', key: 'P', svg: icon('<path d="M7 15a4 4 0 0 1-1-7.8A5 5 0 0 1 15 5a4 4 0 0 1 3 7 3.5 3.5 0 0 1-4 3z"/><circle cx="7" cy="19" r="1.5"/><circle cx="4" cy="21.5" r=".8"/>') },
+  { id: 'arrow', label: 'Flèche', key: 'A', svg: icon('<path d="M4 18c4-8 9-11 15-12M14 4l5 2-2 5"/>') },
+];
+---
+<Base title="Studio" noindex bare>
+  <div class="studio">
+    <!-- Accès -->
+    <section class="screen center" data-screen="login" hidden>
+      <form class="card" data-login>
+        <span class="label red">Spécimens Studio</span>
+        <h1 class="hand title">Atelier</h1>
+        <label class="f"><span class="f-label">Code d’accès de l’admin</span><input type="password" name="code" autocomplete="current-password" required /></label>
+        <button class="btn" type="submit">Entrer</button>
+        <p class="msg" data-login-msg hidden></p>
+        <a class="linkish" href="/admin">← retour à l’admin</a>
+      </form>
+    </section>
+
+    <!-- Brouillons -->
+    <section class="screen home" data-screen="home" hidden>
+      <header class="home-head">
+        <div>
+          <span class="label red">Réserve du musée</span>
+          <h1 class="hand display">Studio</h1>
+          <p class="meta">Prépare tes planches : nettoyage du fond, textes, bulles, flèches.</p>
+        </div>
+        <a class="btn ghost" href="/admin">← Admin</a>
+      </header>
+      <label class="drop" data-drop>
+        <input type="file" accept="image/*" data-import hidden />
+        <span class="hand drop-title">Importer un dessin</span>
+        <span class="meta">Touche ici pour choisir une image, ou glisse-la dans ce cadre.</span>
+      </label>
+      <h2 class="label">Brouillons sur cet appareil</h2>
+      <ol class="projects" data-projects></ol>
+      <p class="hint" data-no-projects hidden>Aucun brouillon pour l’instant.</p>
+      <p class="hint">Les brouillons et les fichiers originaux sont gardés dans ce navigateur, sur cet appareil uniquement. Rien n’est publié sans passer par « Publier ».</p>
+    </section>
+
+    <!-- Éditeur -->
+    <section class="screen editor" data-screen="editor" hidden>
+      <header class="topbar">
+        <button type="button" class="tb" data-home title="Retour aux brouillons">← <span class="hide-sm">Brouillons</span></button>
+        <input class="name" data-name aria-label="Nom du brouillon" maxlength="80" />
+        <span class="save-state" data-save-state aria-live="polite" title="Les brouillons sont gardés dans ce navigateur, sur cet appareil."></span>
+        <div class="tb-group">
+          <button type="button" class="tb" data-undo title="Annuler (Ctrl+Z)" disabled>↶<span class="hide-md"> Annuler</span></button>
+          <button type="button" class="tb" data-redo title="Rétablir (Ctrl+Maj+Z)" disabled>↷<span class="hide-md"> Rétablir</span></button>
+        </div>
+        <div class="tb-group seg" role="group" aria-label="Affichage du dessin">
+          <button type="button" data-view="clean" aria-pressed="true" title="Dessin nettoyé">Nettoyé</button>
+          <button type="button" data-view="original" aria-pressed="false" title="Dessin original">Original</button>
+          <button type="button" data-view="compare" aria-pressed="false" title="Comparer l’original et le nettoyé">Comparer</button>
+        </div>
+        <div class="tb-group zoom">
+          <button type="button" class="tb" data-zoom-out title="Zoom arrière (−)">−</button>
+          <button type="button" class="tb zl" data-zoom-label title="Taille réelle (1)">100 %</button>
+          <button type="button" class="tb" data-zoom-in title="Zoom avant (+)">+</button>
+          <button type="button" class="tb" data-zoom-fit title="Ajuster à l’écran (0)">Ajuster</button>
+        </div>
+        <div class="tb-group end">
+          <button type="button" class="tb" data-download title="Télécharger l’image finale en PNG">PNG</button>
+          <button type="button" class="btn" data-publish>Publier…</button>
+        </div>
+      </header>
+
+      <nav class="tools" aria-label="Outils">
+        {tools.map((t) => (
+          <button type="button" class="tool" data-tool={t.id} aria-pressed={t.id === 'select' ? 'true' : 'false'} title={`${t.label} (${t.key})`}>
+            <Fragment set:html={t.svg} />
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div class="stage-wrap">
+        <div class="canvas" data-canvas></div>
+        <div class="compare-labels" data-compare-labels hidden><span>Original</span><span>Nettoyé</span></div>
+      </div>
+
+      <aside class="panel-wrap">
+        <button type="button" class="sheet-toggle" data-sheet-toggle aria-expanded="false">Propriétés et calques</button>
+        <div class="panel" data-panel></div>
+      </aside>
+    </section>
+
+    <dialog class="publish" data-publish-dialog>
+      <form method="dialog" class="publish-in">
+        <h2 class="hand title">Avant de publier</h2>
+        <div class="preview"><img data-preview alt="Aperçu de l’image finale" /></div>
+        <p class="meta" data-preview-info></p>
+        <div class="grid2">
+          <label class="f"><span class="f-label">Publier dans</span>
+            <select data-dest><option value="">Nouveau spécimen</option></select>
+          </label>
+          <label class="f"><span class="f-label">Comme</span>
+            <select data-slot><option value="planche">Planche</option><option value="espece">Dessin de la fiche espèce</option></select>
+          </label>
+        </div>
+        <p class="hint">L’image est ajoutée au formulaire de l’admin. Tu vérifies les informations, puis « Enregistrer » la publie. Rien n’est envoyé avant.</p>
+        <div class="row">
+          <button type="button" class="btn" data-send>Continuer vers la publication</button>
+          <button type="button" class="btn ghost" data-dialog-download>Télécharger le PNG</button>
+          <button type="button" class="btn ghost" data-dialog-close>Annuler</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="busy" data-busy hidden><span data-busy-text></span></div>
+  </div>
+
+  <script type="application/json" id="studio-specs" set:html={JSON.stringify(specs)} />
+  <script>
+    import '../../studio/main';
+  </script>
+</Base>
+
+<style is:global>
+  html, body { height: 100%; }
+  body { overflow: hidden; }
+  .studio {
+    --studio-bg: #E9E4D9; --chrome: var(--bg); --edge: var(--hairline);
+    height: 100dvh; display: flex; flex-direction: column; color: var(--ink);
+  }
+  @media (prefers-color-scheme: dark) { .studio { --studio-bg: #121110; --edge: #3A3631; } }
+  .screen { flex: 1; min-height: 0; }
+  .screen.center { display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .card { width: min(380px, 100%); display: flex; flex-direction: column; gap: 14px; }
+
+  /* Contrôles communs */
+  .studio .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 6px 16px;
+    border: 2px solid var(--ink); border-radius: var(--radius-hand); background: var(--ink); color: var(--bg);
+    font-family: var(--font-hand); font-weight: 600; font-variation-settings: var(--hand-settings-soft); font-size: 16px; cursor: pointer; white-space: nowrap;
+  }
+  .studio .btn:hover { background: var(--red); border-color: var(--red); color: var(--bg); }
+  .studio .btn.ghost { background: transparent; color: var(--ink); }
+  .studio .btn.ghost:hover { color: var(--red); border-color: var(--red); background: transparent; }
+  .studio .btn.danger { background: transparent; color: var(--red); border-color: var(--red); }
+  .studio .btn[disabled], .studio button[disabled] { opacity: .4; pointer-events: none; }
+  .linkish { font-family: var(--font-label); font-size: 13px; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; cursor: pointer; }
+  .linkish.danger { color: var(--red); }
+  .msg { margin: 0; font-family: var(--font-label); font-size: 13px; color: var(--red); }
+  .hint { margin: 0; font-family: var(--font-label); font-size: 12px; line-height: 1.5; color: var(--ink-2); }
+  .studio input:not([type=checkbox]):not([type=range]):not([type=color]):not([type=file]), .studio select, .studio textarea {
+    font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1.5px solid var(--ink);
+    border-radius: 4px; padding: 7px 9px; width: 100%; min-height: 40px;
+  }
+  .studio textarea { resize: vertical; line-height: 1.4; }
+  .f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .f-label { font-family: var(--font-label); font-size: 12px; letter-spacing: .04em; color: var(--ink-2); }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .check { display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: 15px; }
+  .check input { width: 18px; height: 18px; accent-color: var(--red); }
+  .seg { display: inline-flex; border: 1.5px solid var(--ink); border-radius: 6px; overflow: hidden; flex-wrap: nowrap; }
+  .seg button { min-height: 36px; padding: 4px 10px; font-family: var(--font-label); font-size: 13px; border-right: 1px solid var(--edge); background: transparent; color: var(--ink); }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on, .seg button[aria-pressed=true] { background: var(--ink); color: var(--bg); }
+  .swatches { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .sw { width: 30px; height: 30px; border-radius: 50%; background: var(--c); border: 1.5px solid var(--line); cursor: pointer; }
+  .sw.on { outline: 2.5px solid var(--red); outline-offset: 2px; }
+  .swatches input[type=color] { width: 34px; height: 34px; padding: 0; border: 1.5px solid var(--line); border-radius: 8px; background: none; }
+  .numrow { display: grid; grid-template-columns: 1fr 76px; gap: 8px; align-items: center; }
+  .numrow input[type=range] { width: 100%; accent-color: var(--red); }
+  .numrow .num { min-height: 36px !important; padding: 4px 6px !important; }
+
+  /* Brouillons */
+  .home { overflow-y: auto; padding: 22px 20px 40px; max-width: 760px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+  .home-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .home-head .meta { margin: 6px 0 0; }
+  .drop {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center;
+    min-height: 160px; padding: 20px; border: 2px dashed var(--ink); border-radius: var(--radius-hand); cursor: pointer; background: var(--label);
+  }
+  .drop.over { border-color: var(--red); color: var(--red); }
+  .drop-title { font-size: 24px; }
+  .projects { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 16px; }
+  .proj { display: flex; flex-direction: column; gap: 4px; }
+  .proj-open { display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 0; background: none; border: 0; color: inherit; cursor: pointer; }
+  .proj-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #fff; border: 1px solid var(--edge); display: block; }
+  .proj-t { display: flex; flex-direction: column; gap: 2px; }
+  .proj-t strong { font-family: var(--font-hand); font-weight: 700; font-size: 16px; }
+  .proj .linkish { align-self: flex-start; }
+
+  /* Éditeur */
+  .editor {
+    display: grid; grid-template-columns: 84px minmax(0, 1fr) 310px; grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: 'top top top' 'tools stage panel';
+  }
+  .topbar {
+    grid-area: top; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1.5px solid var(--edge);
+    background: var(--chrome); flex-wrap: wrap;
+  }
+  .tb-group { display: flex; align-items: center; gap: 4px; }
+  .tb-group.end { margin-left: auto; gap: 8px; }
+  .tb { min-height: 36px; min-width: 36px; padding: 4px 10px; border: 1.5px solid transparent; border-radius: 6px; background: transparent; color: var(--ink); font-family: var(--font-label); font-size: 14px; cursor: pointer; }
+  .tb:hover { border-color: var(--line); }
+  .zl { min-width: 64px; }
+  .name { max-width: 240px; font-family: var(--font-hand) !important; font-weight: 700; border-color: transparent !important; background: transparent !important; }
+  .name:hover, .name:focus { border-color: var(--line) !important; }
+  .save-state { font-family: var(--font-label); font-size: 11px; color: var(--ink-2); }
+  .save-state[data-state=error] { color: var(--red); }
+
+  .tools { grid-area: tools; display: flex; flex-direction: column; gap: 4px; padding: 10px 6px; border-right: 1.5px solid var(--edge); background: var(--chrome); overflow-y: auto; }
+  .tool { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 2px; border-radius: 8px; border: 1.5px solid transparent; background: none; color: var(--ink); cursor: pointer; font-family: var(--font-label); font-size: 11px; line-height: 1.1; text-align: center; }
+  .tool:hover { border-color: var(--line); }
+  .tool[aria-pressed=true] { background: var(--ink); color: var(--bg); }
+
+  .stage-wrap { grid-area: stage; position: relative; min-width: 0; min-height: 0; background: var(--studio-bg); }
+  .canvas { position: absolute; inset: 0; touch-action: none; }
+  .compare-labels { position: absolute; top: 10px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 12px; pointer-events: none; }
+  .compare-labels span { font-family: var(--font-label); font-size: 12px; background: var(--ink); color: var(--bg); padding: 2px 8px; border-radius: 4px; }
+
+  .panel-wrap { grid-area: panel; border-left: 1.5px solid var(--edge); background: var(--chrome); min-height: 0; display: flex; flex-direction: column; }
+  .sheet-toggle { display: none; }
+  .panel { overflow-y: auto; flex: 1; min-height: 0; }
+  .tabs { display: flex; position: sticky; top: 0; background: var(--chrome); z-index: 1; border-bottom: 1.5px solid var(--edge); }
+  .tabs button { flex: 1; min-height: 42px; background: none; border: 0; border-bottom: 2.5px solid transparent; color: var(--ink-2); font-family: var(--font-label); font-size: 13px; cursor: pointer; }
+  .tabs button.on { color: var(--ink); border-bottom-color: var(--red); }
+  .panel-body { padding: 14px; }
+  .props, .layers { display: flex; flex-direction: column; gap: 14px; }
+  .p-title { margin: 0; font-family: var(--font-hand); font-size: 20px; text-transform: uppercase; font-variation-settings: var(--hand-settings); }
+  .p-actions { display: flex; flex-direction: column; gap: 10px; padding-top: 6px; border-top: 1px solid var(--edge); }
+  .layer { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--edge); }
+  .layer.hidden > :not(header) { opacity: .45; }
+  .layer-head { display: flex; align-items: center; gap: 6px; }
+  .layer-head strong { font-family: var(--font-hand); font-size: 16px; flex: 1; }
+  .layer-head .count { font-family: var(--font-label); font-size: 11px; color: var(--ink-2); }
+  .mini { font-family: var(--font-label); font-size: 11px; padding: 4px 7px; min-height: 30px; border: 1px solid var(--line); border-radius: 5px; background: none; color: var(--ink); cursor: pointer; }
+  .mini[aria-pressed=true] { background: var(--label); border-color: var(--ink); }
+  .layer-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .layer-items button { width: 100%; text-align: left; padding: 7px 8px; min-height: 36px; border-radius: 5px; border: 0; background: none; color: var(--ink); font-size: 14px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .layer-items button:hover { background: var(--label); }
+  .layer-items button.on { background: var(--ink); color: var(--bg); }
+
+  .publish { border: 2px solid var(--ink); border-radius: 10px; padding: 0; width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); background: var(--bg); color: var(--ink); }
+  .publish::backdrop { background: rgba(26, 24, 22, .55); }
+  .publish-in { display: flex; flex-direction: column; gap: 12px; padding: 18px; }
+  .publish-in .title { margin: 0; }
+  .preview { background: var(--studio-bg); display: flex; justify-content: center; padding: 10px; border-radius: 6px; }
+  .preview img { max-width: 100%; max-height: 46vh; object-fit: contain; background: #fff; box-shadow: var(--shadow-thumb); }
+
+  .busy { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(26, 24, 22, .35); z-index: 50; }
+  .busy span { background: var(--bg); color: var(--ink); padding: 12px 18px; border-radius: 8px; font-family: var(--font-label); font-size: 14px; border: 1.5px solid var(--ink); }
+
+  @media (max-width: 1400px) {
+    .hide-md { display: none; }
+    .topbar { gap: 6px; }
+    .name { max-width: 170px; }
+    .save-state { max-width: 120px; line-height: 1.2; }
+  }
+  /* Téléphone / tablette en portrait */
+  @media (max-width: 900px) {
+    .editor { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-areas: 'top' 'stage' 'tools' 'panel'; }
+    .hide-sm { display: none; }
+    .topbar { gap: 4px 6px; padding: 6px 8px; }
+    .topbar > [data-home] { order: 1; }
+    .topbar > .name { order: 2; flex: 1; min-width: 0; max-width: none; font-size: 16px !important; min-height: 36px !important; padding: 4px 6px !important; }
+    .topbar > .tb-group:not(.seg):not(.zoom):not(.end) { order: 3; }
+    .topbar > .tb-group.end { order: 4; margin-left: 0; }
+    .topbar > .seg { order: 5; }
+    .topbar > .zoom { order: 6; margin-left: auto; }
+    .topbar .seg button { min-height: 32px; padding: 2px 8px; font-size: 12px; }
+    .topbar .tb { min-height: 32px; padding: 2px 6px; font-size: 13px; }
+    .topbar .btn { min-height: 34px; padding: 4px 12px; font-size: 15px; }
+    .save-state { display: none; }
+    .tb-group.zoom .tb:not(.zl):not([data-zoom-fit]) { display: none; }
+    .tools { flex-direction: row; border-right: 0; border-top: 1.5px solid var(--edge); overflow-x: auto; padding: 4px 6px; }
+    .tool { flex: 1 0 54px; min-width: 54px; padding: 6px 0; font-size: 10px; }
+    .panel-wrap { border-left: 0; border-top: 1.5px solid var(--edge); max-height: 44px; transition: max-height .2s ease; }
+    body.sheet-open .panel-wrap { max-height: 46dvh; }
+    .sheet-toggle { display: block; min-height: 44px; width: 100%; background: var(--label); border: 0; font-family: var(--font-label); font-size: 13px; color: var(--ink); }
+    .sheet-toggle::after { content: ' ▴'; }
+    body.sheet-open .sheet-toggle::after { content: ' ▾'; }
+  }
+</style>

@@ -1,0 +1,137 @@
+// Document du Studio : tout ce qui est posé sur le dessin, en coordonnées
+// de l'image d'origine (1 unité = 1 pixel du dessin). L'image elle-même
+// n'est jamais modifiée.
+
+export type FontKey = 'hand' | 'body' | 'label';
+export const FONTS: Record<FontKey, { family: string; label: string; weights: number[]; italic: boolean }> = {
+  hand: { family: 'Shantell Sans Variable', label: 'Lettrage BD', weights: [400, 500, 600, 700, 800], italic: true },
+  body: { family: 'Atkinson Hyperlegible', label: 'Texte lisible', weights: [400, 700], italic: true },
+  label: { family: 'Courier Prime', label: 'Machine à écrire', weights: [400], italic: false },
+};
+
+export const COLORS = [
+  { value: '#1A1816', label: 'Noir feutre' },
+  { value: '#C23B30', label: 'Rouge pommettes' },
+  { value: '#2F5DA8', label: 'Bleu stylo' },
+  { value: '#FFFFFF', label: 'Blanc' },
+];
+
+export interface TextStyle {
+  font: FontKey;
+  size: number;
+  weight: number;
+  italic: boolean;
+  upper: boolean;
+  align: 'left' | 'center' | 'right';
+  color: string;
+  lineHeight: number;
+}
+
+export interface TextItem extends TextStyle {
+  id: string;
+  type: 'text';
+  x: number;
+  y: number;
+  width: number;
+  rotation: number;
+  text: string;
+}
+
+export type BubbleShape = 'oval' | 'rect' | 'thought';
+export interface BubbleItem extends TextStyle {
+  id: string;
+  type: 'bubble';
+  shape: BubbleShape;
+  /** Centre de la bulle. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  text: string;
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+  tail: boolean;
+  /** Pointe de la queue, relative au centre. */
+  tailX: number;
+  tailY: number;
+  tailWidth: number;
+}
+
+export interface ArrowItem {
+  id: string;
+  type: 'arrow';
+  x1: number; y1: number; x2: number; y2: number;
+  /** Courbure, de -1 à 1. */
+  bend: number;
+  color: string;
+  width: number;
+}
+
+export type Item = TextItem | BubbleItem | ArrowItem;
+export type LayerKey = 'drawing' | 'bubbles' | 'texts';
+export const layerOf = (it: Item): LayerKey => (it.type === 'text' ? 'texts' : 'bubbles');
+
+export interface LayerState { visible: boolean; locked: boolean }
+export interface Doc {
+  version: 1;
+  width: number;
+  height: number;
+  /** Fond utilisé pour l'export : dessin nettoyé ou original. */
+  background: 'clean' | 'original';
+  layers: Record<LayerKey, LayerState>;
+  items: Item[];
+}
+
+export const newDoc = (width: number, height: number): Doc => ({
+  version: 1,
+  width,
+  height,
+  background: 'clean',
+  layers: {
+    drawing: { visible: true, locked: true },
+    bubbles: { visible: true, locked: false },
+    texts: { visible: true, locked: false },
+  },
+  items: [],
+});
+
+export const uid = () => Math.random().toString(36).slice(2, 10);
+
+/** Taille de base proportionnelle au dessin (≈ 2,5 % de la hauteur). */
+export const baseSize = (d: Doc) => Math.max(16, Math.round(Math.max(d.width, d.height) * 0.025));
+
+export function newText(d: Doc, x: number, y: number): TextItem {
+  const size = baseSize(d);
+  return {
+    id: uid(), type: 'text', x, y, width: size * 9, rotation: 0, text: 'Texte',
+    font: 'hand', size, weight: 700, italic: false, upper: true, align: 'center', color: '#1A1816', lineHeight: 1.15,
+  };
+}
+
+export function newBubble(d: Doc, x: number, y: number, shape: BubbleShape): BubbleItem {
+  const size = baseSize(d);
+  const w = size * 9, h = size * 5;
+  return {
+    id: uid(), type: 'bubble', shape, x, y, w, h, text: shape === 'thought' ? 'Hmm…' : 'Bonjour !',
+    font: 'hand', size, weight: 700, italic: false, upper: true, align: 'center', color: '#1A1816', lineHeight: 1.15,
+    fill: '#FFFFFF', stroke: '#1A1816', strokeWidth: Math.max(2, Math.round(size / 12)),
+    tail: true, tailX: -w * 0.25, tailY: h * 0.95, tailWidth: Math.round(w * 0.16),
+  };
+}
+
+export function newArrow(d: Doc, x: number, y: number): ArrowItem {
+  const size = baseSize(d);
+  return { id: uid(), type: 'arrow', x1: x - size * 3, y1: y - size * 2, x2: x, y2: y, bend: 0.25, color: '#2F5DA8', width: Math.max(2, Math.round(size / 10)) };
+}
+
+export const displayText = (it: { text: string; upper: boolean }) => (it.upper ? it.text.toLocaleUpperCase('fr-FR') : it.text);
+export const fontStyle = (it: TextStyle) => `${it.italic ? 'italic ' : ''}${it.weight}`;
+
+export function describe(it: Item): string {
+  if (it.type === 'arrow') return 'Flèche';
+  const t = it.text.replace(/\s+/g, ' ').trim() || '(vide)';
+  const short = t.length > 28 ? t.slice(0, 27) + '…' : t;
+  if (it.type === 'text') return short;
+  return `${it.shape === 'thought' ? 'Pensée' : 'Bulle'} : ${short}`;
+}
