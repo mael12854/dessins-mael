@@ -54,6 +54,14 @@ const editor = new Editor($<HTMLDivElement>('[data-canvas]'), {
   select: (it) => { panel.tab = it ? 'props' : 'layers'; panel.render(); document.body.classList.toggle('has-selection', !!it); },
   tool: (t) => {
     document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+    const hints: Partial<Record<Tool, string>> = {
+      text: 'Touche la planche à l’endroit du texte', 'bubble-oval': 'Touche la planche pour placer la bulle',
+      'bubble-rect': 'Touche la planche pour placer la bulle', 'bubble-thought': 'Touche la planche pour placer la pensée',
+      arrow: 'Touche la planche pour placer la flèche', marker: 'Peins sur l’écriture à cacher',
+    };
+    const hint = $('[data-tool-hint]');
+    hint.textContent = hints[t] ?? '';
+    hint.hidden = !hints[t];
     panel.render();
     if (t === 'marker' && matchMedia('(pointer: coarse)').matches) document.body.classList.remove('sheet-open');
   },
@@ -62,13 +70,14 @@ const editor = new Editor($<HTMLDivElement>('[data-canvas]'), {
   editText: () => { openSheet(); panel.focusText(); },
 });
 const panel = new Panel(panelRoot, editor, () => openSheet());
+// Accès pour les tests automatisés, uniquement en développement (absent du site en ligne).
+if (import.meta.env.DEV) (window as any).__studio = { editor, panel };
 
 document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) =>
   b.addEventListener('click', () => {
+    // Même comportement à la souris, au doigt et au stylet : on choisit l'outil, puis on touche la planche.
     const t = b.dataset.tool as Tool;
-    // Sur écran tactile, un appui sur l'outil ajoute directement l'élément au centre.
-    if (t !== 'select' && t !== 'marker' && matchMedia('(pointer: coarse)').matches) editor.addAtCenter(t);
-    else editor.setTool(editor.tool === t ? 'select' : t);
+    editor.setTool(editor.tool === t ? 'select' : t);
   }));
 $('[data-undo]').addEventListener('click', () => editor.undo());
 $('[data-redo]').addEventListener('click', () => editor.redo());
@@ -94,12 +103,15 @@ sheetToggle.addEventListener('click', () => {
 
 // ————— Raccourcis clavier —————
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+// Champs où l'on tape du texte : Ctrl+Z y annule la frappe. Ailleurs (nombre, curseur, couleur, case…), c'est l'éditeur.
+const textEntry = (t: EventTarget | null) =>
+  t instanceof HTMLElement && (t.isContentEditable || t.tagName === 'TEXTAREA' || (t instanceof HTMLInputElement && /^(text|search|password|email|url)$/.test(t.type)));
 window.addEventListener('keydown', (e) => {
   if (screens.editor.hidden || $<HTMLDialogElement>('[data-publish-dialog]').open) return;
   const mod = e.ctrlKey || e.metaKey;
   const k = e.key.toLowerCase();
-  if (mod && k === 'z' && !typing(e.target)) { e.preventDefault(); e.shiftKey ? editor.redo() : editor.undo(); return; }
-  if (mod && k === 'y' && !typing(e.target)) { e.preventDefault(); editor.redo(); return; }
+  if (mod && k === 'z' && !textEntry(e.target)) { e.preventDefault(); e.shiftKey ? editor.redo() : editor.undo(); return; }
+  if (mod && k === 'y' && !textEntry(e.target)) { e.preventDefault(); editor.redo(); return; }
   if (mod && k === 's') { e.preventDefault(); saveNow(); return; }
   if (typing(e.target)) { if (e.key === 'Escape') (e.target as HTMLElement).blur(); return; }
   if (mod && k === 'd') { e.preventDefault(); editor.duplicate(); return; }

@@ -503,14 +503,6 @@ export class Editor {
     if (it.type !== 'arrow') this.ev.editText(it);
   }
 
-  /** Ajoute un élément au centre de la zone visible. */
-  addAtCenter(tool: Tool) {
-    const s = this.stage.scaleX();
-    const x = Math.min(Math.max((this.stage.width() / 2 - this.stage.x()) / s, 0), this.doc.width);
-    const y = Math.min(Math.max((this.stage.height() / 2 - this.stage.y()) / s, 0), this.doc.height);
-    this.createAt(tool, x, y);
-  }
-
   // ————— Modifications —————
   private patchQuiet(id: string, p: Partial<Item>) {
     const it = this.find(id);
@@ -618,6 +610,7 @@ export class Editor {
 
   commit() {
     clearTimeout(this.commitTimer);
+    this.commitTimer = 0;
     const snap = JSON.stringify(this.doc);
     if (snap === this.history[this.hIndex]) { this.ev.change(this.doc, false); return; }
     this.history = this.history.slice(0, this.hIndex + 1);

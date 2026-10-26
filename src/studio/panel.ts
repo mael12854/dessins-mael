@@ -39,7 +39,9 @@ function number(value: number, min: number, max: number, step: number, onSet: (v
   const range = h('input', { type: 'range', min, max, step, value }) as HTMLInputElement;
   const num = h('input', { type: 'number', min, max, step, value: Math.round(value * 100) / 100, class: 'num' }) as HTMLInputElement;
   range.addEventListener('input', () => { num.value = range.value; onSet(Number(range.value)); });
-  num.addEventListener('change', () => { const v = Math.min(max, Math.max(min, Number(num.value) || min)); range.value = String(v); onSet(v); });
+  // Appliqué pendant la frappe (le dessin suit le champ), borné à la validation.
+  num.addEventListener('input', () => { const v = Number(num.value); if (num.value !== '' && v >= min && v <= max) { range.value = String(v); onSet(v); } });
+  num.addEventListener('change', () => { const v = Math.min(max, Math.max(min, Number(num.value) || min)); num.value = String(v); range.value = String(v); onSet(v); });
   return h('div', { class: 'numrow' }, range, num);
 }
 
