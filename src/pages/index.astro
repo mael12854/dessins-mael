@@ -4,14 +4,25 @@ import Sheet from '../components/Sheet.astro';
 import PendingTag from '../components/PendingTag.astro';
 import Arrow from '../components/Arrow.astro';
 import Card from '../components/Card.astro';
+import SpecimenList from '../components/SpecimenList.astro';
 import { allSpecimens, pad, plancheUrl, SERIES, TECH } from '../lib/specimens';
 
 const byNew = (await allSpecimens()).reverse();
 const latest = byNew[0];
 const recent = byNew.slice(1, 5);
+// Tant qu'aucune planche n'a d'image, l'accueil montre la liste des spécimens.
+const noImages = !byNew.some((s) => s.image && !s.pending);
 ---
 <Base>
-  {latest ? (
+  {noImages && byNew.length > 0 ? (
+    <section class="pad" style="display:flex;flex-direction:column;gap:14px;padding-top:22px;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;">
+        <h1 class="label" style="margin:0;font-weight:400;">Les spécimens</h1>
+        <span class="meta" style="color:var(--red);">{byNew.length} sous verre</span>
+      </div>
+      <SpecimenList list={byNew} />
+    </section>
+  ) : latest ? (
     <section style="display:flex;flex-direction:column;gap:12px;padding-top:22px;">
       <div class="pad" style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;">
         <span class="label">Dernière observation</span>
@@ -42,7 +53,7 @@ const recent = byNew.slice(1, 5);
     </section>
   )}
 
-  {recent.length > 0 && (
+  {!noImages && recent.length > 0 && (
     <section class="pad" style="display:flex;flex-direction:column;gap:14px;padding-top:44px;">
       <h2 class="label" style="margin:0;font-weight:400;">Observés récemment</h2>
       <div class="grid">
