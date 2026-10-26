@@ -1,9 +1,26 @@
 # Spécimens
 
 *Observations dessinées d’humains en milieu naturel.*
-Blog BD, pensé d’abord pour le téléphone. Site statique fait avec [Astro](https://astro.build) : pas de base de données, pas de comptes, pas de commentaires, pas d’analytics.
+Blog BD, pensé d’abord pour le téléphone. Site statique fait avec [Astro](https://astro.build) : pas de base de données (les spécimens sont des fichiers dans ce dépôt), pas de comptes, pas de commentaires, pas d’analytics. Seule l’API d’admin (`/api/admin`) tourne sur le serveur.
 
 ## Ajouter un spécimen
+
+### Depuis le téléphone : `/admin`
+
+Aller sur `https://dessins-mael.vercel.app/admin`, entrer le code d’accès, puis « + Nouveau spécimen ». On peut aussi modifier ou retirer un spécimen existant. Les images sont réduites dans le navigateur avant l’envoi. Chaque enregistrement crée un commit dans ce dépôt ; Vercel republie le site en une minute environ.
+
+Variables d’environnement Vercel nécessaires :
+
+| Variable | Rôle |
+| --- | --- |
+| `ADMIN_PASSWORD` | code d’accès de `/admin` |
+| `GITHUB_TOKEN` | jeton GitHub *fine-grained*, limité à ce dépôt, permission **Contents : Read and write** |
+| `GITHUB_REPO` | facultatif, `mael12854/dessins-mael` par défaut |
+| `GITHUB_BRANCH` | facultatif, `main` par défaut |
+
+Après un changement de variable, redéployer le site (Vercel → Deployments → Redeploy).
+
+### À la main
 
 Chaque spécimen est un dossier dans `specimens/`, avec un fichier `index.md` et ses images à côté :
 

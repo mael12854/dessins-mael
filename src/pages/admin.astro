@@ -1,0 +1,441 @@
+---
+import Base from '../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import { pad } from '../lib/specimens';
+
+// Spécimens publiés au moment du build (l'admin les relit pour les modifier).
+const preview = async (img?: ImageMetadata) => (img ? (await getImage({ src: img, width: 480, format: 'webp' })).src : null);
+const entries = (await getCollection('specimens')).sort((a, b) => b.data.n - a.data.n);
+const specs = await Promise.all(
+  entries.map(async ({ id, data: d }) => ({
+    folder: id,
+    n: d.n, series: d.series, tech: d.tech, title: d.title, latin: d.latin ?? '', date: d.date, lieu: d.lieu,
+    alt: d.alt ?? '', pending: d.pending,
+    img: { planche: await preview(d.image), signature: await preview(d.signature), espece: await preview(d.fiche?.image) },
+    fiche: d.fiche
+      ? { alt: d.fiche.alt ?? '', habitat: d.fiche.habitat, cri: d.fiche.cri, rush: d.fiche.rush, crush: d.fiche.crush, annotations: d.fiche.annotations }
+      : null,
+  })),
+);
+---
+<Base title="Admin" noindex>
+  <section class="pad admin" data-admin>
+    <span class="label red">Réserve du musée</span>
+    <h1 class="hand display">Admin</h1>
+
+    <!-- Code d'accès -->
+    <form class="card-admin" data-view="login">
+      <label class="field">
+        <span class="field-label">Code d’accès</span>
+        <input type="password" name="code" autocomplete="current-password" required />
+      </label>
+      <button class="btn" type="submit">Entrer dans la réserve</button>
+      <p class="msg" data-msg hidden></p>
+    </form>
+
+    <!-- Liste -->
+    <div data-view="list" hidden>
+      <p class="msg warn" data-nogithub hidden>
+        La clé GitHub (<code>GITHUB_TOKEN</code>) n’est pas encore configurée sur Vercel : impossible d’enregistrer pour l’instant.
+      </p>
+      <p class="msg ok" data-flash hidden></p>
+      <div class="row">
+        <button class="btn" type="button" data-new>+ Nouveau spécimen</button>
+        <button class="btn ghost" type="button" data-logout>Se déconnecter</button>
+      </div>
+      <ol class="admin-list" data-list></ol>
+      <p class="meta" data-empty-list hidden>Aucun spécimen pour l’instant.</p>
+    </div>
+
+    <!-- Formulaire -->
+    <form class="admin-form" data-view="form" hidden novalidate>
+      <button class="hlink small" type="button" data-back>← retour à la liste</button>
+      <h2 class="hand title" data-form-title>Nouveau spécimen</h2>
+
+      <fieldset>
+        <legend class="label">Spécimen</legend>
+        <div class="grid2">
+          <label class="field"><span class="field-label">Numéro</span><input type="number" name="n" min="1" required /></label>
+          <label class="field"><span class="field-label">Date d’observation</span><input type="date" name="date" /></label>
+        </div>
+        <label class="field"><span class="field-label">Titre (nom de l’espèce)</span><input name="title" required maxlength="120" placeholder="La Dormeuse de terminus" /></label>
+        <div class="grid2">
+          <label class="field"><span class="field-label">Série</span>
+            <select name="series"><option value="metro">La vie des gens du métro</option><option value="hs">Hors-série</option></select>
+          </label>
+          <label class="field"><span class="field-label">Technique</span>
+            <select name="tech"><option value="feutre">Feutre scanné</option><option value="numerique">Dessin numérique</option><option value="mixte">Feutre scanné, texte tapé</option></select>
+          </label>
+        </div>
+        <label class="field"><span class="field-label">Lieu (générique)</span><input name="lieu" required maxlength="120" placeholder="rame, heure de pointe" /></label>
+        <label class="field" data-latin><span class="field-label">Nom latin <em>(facultatif)</em></span><input name="latin" maxlength="120" placeholder="Somnolenta terminalis" /></label>
+        <label class="check"><input type="checkbox" name="pending" /> En cours d’observation (pas encore dessiné)</label>
+      </fieldset>
+
+      <fieldset data-planche-block>
+        <legend class="label">Planche</legend>
+        <div class="imgfield" data-img="planche">
+          <img alt="" hidden />
+          <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir le scan</label>
+          <button class="btn ghost" type="button" data-remove hidden>Retirer</button>
+        </div>
+        <label class="field"><span class="field-label">Description du dessin (pour les lecteurs d’écran)</span><textarea name="alt" rows="2" maxlength="400"></textarea></label>
+        <span class="field-label">Signature <em>(facultatif)</em></span>
+        <div class="imgfield small" data-img="signature">
+          <img alt="" hidden />
+          <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir la signature</label>
+          <button class="btn ghost" type="button" data-remove hidden>Retirer</button>
+        </div>
+      </fieldset>
+
+      <fieldset data-fiche-block>
+        <legend class="label">Fiche espèce</legend>
+        <label class="check"><input type="checkbox" name="hasFiche" /> Ce spécimen a une fiche espèce</label>
+        <div data-fiche hidden>
+          <div class="imgfield" data-img="espece">
+            <div class="annot-stage"><img alt="" hidden /><div data-markers></div></div>
+            <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir le dessin de l’espèce</label>
+            <button class="btn ghost" type="button" data-remove hidden>Retirer</button>
+          </div>
+          <label class="field"><span class="field-label">Description du dessin de l’espèce</span><textarea name="ficheAlt" rows="2" maxlength="400"></textarea></label>
+          <label class="field"><span class="field-label">a. Habitat</span><textarea name="habitat" rows="2"></textarea></label>
+          <label class="field"><span class="field-label">b. Cri</span><textarea name="cri" rows="2"></textarea></label>
+          <label class="field"><span class="field-label">c. Comportement en période de rush</span><textarea name="rush" rows="2"></textarea></label>
+          <label class="field"><span class="field-label">d. Comportement en période de crush</span><textarea name="crush" rows="2"></textarea></label>
+          <span class="field-label">Annotations en bleu stylo <em>(4 max — touche « placer » puis le dessin)</em></span>
+          <div class="annots" data-annots></div>
+          <button class="btn ghost" type="button" data-add-annot>+ Annotation</button>
+        </div>
+      </fieldset>
+
+      <p class="msg" data-form-msg hidden></p>
+      <div class="row">
+        <button class="btn" type="submit" data-save>Enregistrer</button>
+        <button class="btn danger" type="button" data-delete hidden>Retirer ce spécimen</button>
+      </div>
+    </form>
+  </section>
+
+  <script type="application/json" id="specs-data" set:html={JSON.stringify(specs)} />
+</Base>
+
+<style is:global>
+  .admin { display: flex; flex-direction: column; gap: 18px; padding-top: 26px; }
+  .card-admin, .admin-form { display: flex; flex-direction: column; gap: 14px; }
+  fieldset { border: 1.5px solid var(--ink); border-radius: var(--radius-hand); padding: 14px 16px 18px; margin: 0; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  legend { padding: 0 6px; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field-label { font-family: var(--font-label); font-size: 12px; letter-spacing: .04em; color: var(--ink-2); }
+  .field-label em { font-style: normal; opacity: .8; }
+  input:not([type='checkbox']):not([type='file']), select, textarea {
+    font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1.5px solid var(--ink);
+    border-radius: 4px; padding: 9px 10px; width: 100%; min-height: 44px;
+  }
+  textarea { resize: vertical; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+  .check input { width: 20px; height: 20px; accent-color: var(--red); }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 16px;
+    border: 2px solid var(--ink); border-radius: var(--radius-hand); background: var(--ink); color: var(--bg);
+    font-family: var(--font-hand); font-weight: 600; font-variation-settings: var(--hand-settings-soft); font-size: 16px; cursor: pointer;
+  }
+  .btn:hover { color: var(--bg); background: var(--red); border-color: var(--red); }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn.ghost:hover { color: var(--red); background: transparent; border-color: var(--red); }
+  .btn.danger { background: transparent; color: var(--red); border-color: var(--red); border-radius: var(--radius-hand-alt); }
+  .btn[disabled] { opacity: .5; pointer-events: none; }
+  .file { cursor: pointer; }
+  .msg { margin: 0; font-family: var(--font-label); font-size: 13px; color: var(--red); }
+  .msg.ok { color: var(--ink-2); }
+  .msg.warn { padding: 10px 12px; border: 1.5px dashed var(--red); }
+  .imgfield { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .imgfield img { width: 100%; max-height: 320px; object-fit: contain; background: var(--sheet); }
+  .imgfield.small img { width: 120px; height: 50px; }
+  .annot-stage { position: relative; width: 100%; }
+  .annot-stage img { max-height: none; aspect-ratio: 4 / 3; object-fit: contain; }
+  .annot-stage.placing { outline: 2px dashed var(--blue); cursor: crosshair; }
+  .marker {
+    position: absolute; transform: translate(-50%, -50%); width: 22px; height: 22px; border-radius: 50%;
+    background: #2F5DA8; color: #FFFDF8; font: 12px/22px var(--font-label); text-align: center; pointer-events: none;
+  }
+  .annots { display: flex; flex-direction: column; gap: 8px; }
+  .annot-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+  .annot-row .num { font-family: var(--font-label); font-size: 12px; color: var(--blue); }
+  .annot-row .pos { font-family: var(--font-label); font-size: 11px; color: var(--ink-2); grid-column: 2 / -1; margin-top: -4px; }
+  .admin-list { list-style: none; margin: 0; padding: 0; }
+  .admin-list li + li { border-top: 1px solid var(--line); }
+  .admin-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 0; text-align: left; min-height: 44px; }
+  .admin-item .thumb { flex: none; width: 44px; aspect-ratio: 1 / 1.414; background: var(--placeholder); object-fit: cover; }
+  .admin-item .t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .admin-item .badge { font-family: var(--font-label); font-size: 11px; color: var(--red); }
+</style>
+
+<script>
+  type Img = { planche: string | null; signature: string | null; espece: string | null };
+  type Annot = { text: string; x: number; y: number };
+  type Spec = {
+    folder: string; n: number; series: 'metro' | 'hs'; tech: string; title: string; latin: string; date: string; lieu: string;
+    alt: string; pending: boolean; img: Img;
+    fiche: { alt: string; habitat: string; cri: string; rush: string; crush: string; annotations: Annot[] } | null;
+    _status?: string;
+  };
+  const IMG_KEYS = ['planche', 'signature', 'espece'] as const;
+  type ImgKey = (typeof IMG_KEYS)[number];
+
+  const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
+  const views = { login: $('[data-view=login]'), list: $('[data-view=list]'), form: $<HTMLFormElement>('[data-view=form]') };
+  const form = views.form;
+  let specs: Spec[] = JSON.parse($('#specs-data').textContent || '[]');
+  let code = '';
+  try { code = sessionStorage.getItem('admin-code') || ''; } catch {}
+
+  function show(v: keyof typeof views) {
+    for (const [k, el] of Object.entries(views)) el.hidden = k !== v;
+    window.scrollTo(0, 0);
+  }
+  function setMsg(el: HTMLElement, text: string, ok = false) {
+    el.textContent = text; el.hidden = !text; el.classList.toggle('ok', ok);
+  }
+
+  async function api(body: object) {
+    const res = await fetch('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-code': code }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({ error: `Erreur ${res.status}` }));
+    if (res.status === 401) { logout(); throw new Error(data.error); }
+    if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
+    return data;
+  }
+
+  // — Connexion —
+  async function login(c: string) {
+    code = c;
+    const r = await api({ action: 'login' });
+    try { sessionStorage.setItem('admin-code', c); } catch {}
+    $('[data-nogithub]').hidden = r.github;
+    renderList(); show('list');
+  }
+  function logout() {
+    code = '';
+    try { sessionStorage.removeItem('admin-code'); } catch {}
+    show('login');
+  }
+  views.login.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $<HTMLButtonElement>('button', views.login); btn.disabled = true;
+    try { await login((views.login.querySelector('[name=code]') as HTMLInputElement).value); }
+    catch (err) { setMsg($('[data-msg]', views.login), (err as Error).message); }
+    btn.disabled = false;
+  });
+  $('[data-logout]').addEventListener('click', logout);
+  if (code) login(code).catch(() => show('login'));
+
+  // — Liste —
+  const pad = (n: number) => String(n).padStart(3, '0');
+  function renderList() {
+    const ol = $('[data-list]'); ol.innerHTML = '';
+    $('[data-empty-list]').hidden = specs.length > 0;
+    for (const s of [...specs].sort((a, b) => b.n - a.n)) {
+      const li = document.createElement('li');
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'admin-item';
+      const thumb = document.createElement(s.img.planche ? 'img' : 'span') as HTMLImageElement; thumb.className = 'thumb';
+      if (s.img.planche) { thumb.src = s.img.planche; thumb.alt = ''; }
+      const t = document.createElement('span'); t.className = 't';
+      const num = document.createElement('span'); num.className = 'badge'; num.textContent = `N° ${pad(s.n)}${s._status ? ' · ' + s._status : ''}`;
+      const title = document.createElement('span'); title.className = 'hand card-title'; title.textContent = s.title;
+      const meta = document.createElement('span'); meta.className = 'meta';
+      meta.textContent = s.pending ? 'en cours d’observation' : `obs. le ${s.date}${s.img.planche ? '' : ' · sans image'}`;
+      t.append(num, title, meta); b.append(thumb, t);
+      b.addEventListener('click', () => openForm(s));
+      li.append(b); ol.append(li);
+    }
+  }
+  $('[data-new]').addEventListener('click', () => openForm(null));
+  $('[data-back]').addEventListener('click', () => { renderList(); show('list'); });
+
+  // — Formulaire —
+  let editing: Spec | null = null;
+  let newImg: Partial<Record<ImgKey, { base64: string; ext: string; url: string }>> = {};
+  let removeImg: Partial<Record<ImgKey, boolean>> = {};
+  let annots: Annot[] = [];
+  let placing = -1;
+  const F = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
+  const toIso = (d: string) => (/^\d{2}\.\d{2}\.\d{4}$/.test(d) ? d.split('.').reverse().join('-') : '');
+  const fromIso = (d: string) => (d ? d.split('-').reverse().join('.') : '');
+
+  function openForm(s: Spec | null) {
+    editing = s; newImg = {}; removeImg = {}; placing = -1;
+    form.reset();
+    setMsg($('[data-form-msg]'), '');
+    $('[data-form-title]').textContent = s ? `Spécimen n°${s.n}` : 'Nouveau spécimen';
+    F('n').value = String(s ? s.n : Math.max(0, ...specs.map((x) => x.n)) + 1);
+    F('n').readOnly = !!s;
+    F('title').value = s?.title ?? '';
+    F('series').value = s?.series ?? 'metro';
+    F('tech').value = s?.tech ?? 'feutre';
+    F('lieu').value = s?.lieu ?? '';
+    F('latin').value = s?.latin ?? '';
+    F('date').value = s ? toIso(s.date) : new Date().toISOString().slice(0, 10);
+    F('pending').checked = !!s?.pending;
+    F('alt').value = s?.alt ?? '';
+    F('hasFiche').checked = s ? !!s.fiche : true;
+    F('ficheAlt').value = s?.fiche?.alt ?? '';
+    for (const k of ['habitat', 'cri', 'rush', 'crush'] as const) F(k).value = s?.fiche?.[k] ?? '';
+    annots = s?.fiche?.annotations.map((a) => ({ ...a })) ?? [];
+    for (const k of IMG_KEYS) renderImg(k);
+    $('[data-delete]').hidden = !s;
+    sync(); renderAnnots(); show('form');
+  }
+
+  function sync() {
+    const metro = F('series').value === 'metro';
+    $('[data-fiche-block]').hidden = !metro;
+    ($('[data-latin]') as HTMLElement).hidden = !metro;
+    $('[data-fiche]').hidden = !F('hasFiche').checked;
+  }
+  F('series').addEventListener('change', sync);
+  F('hasFiche').addEventListener('change', sync);
+
+  function currentImg(k: ImgKey) {
+    if (newImg[k]) return newImg[k]!.url;
+    if (removeImg[k]) return null;
+    return editing?.img[k] ?? null;
+  }
+  function renderImg(k: ImgKey) {
+    const box = $(`[data-img=${k}]`);
+    const img = $<HTMLImageElement>('img', box);
+    const url = currentImg(k);
+    img.hidden = !url; if (url) img.src = url; else img.removeAttribute('src');
+    $('[data-remove]', box).hidden = !url;
+    if (k === 'espece') renderMarkers();
+  }
+
+  // Réduit l'image dans le navigateur avant l'envoi (≤ 2400 px, JPEG ; PNG pour la signature).
+  async function shrink(file: File, k: ImgKey) {
+    const max = k === 'signature' ? 600 : 2400;
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
+    const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+    const ctx = c.getContext('2d')!;
+    const png = k === 'signature';
+    if (!png) { ctx.fillStyle = '#FFFDF8'; ctx.fillRect(0, 0, c.width, c.height); }
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    const type = png ? 'image/png' : 'image/jpeg';
+    const url = c.toDataURL(type, 0.88);
+    return { base64: url.split(',')[1], ext: png ? 'png' : 'jpg', url };
+  }
+  for (const k of IMG_KEYS) {
+    const box = $(`[data-img=${k}]`);
+    $<HTMLInputElement>('input[type=file]', box).addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try { newImg[k] = await shrink(file, k); removeImg[k] = false; renderImg(k); }
+      catch { setMsg($('[data-form-msg]'), 'Impossible de lire cette image.'); }
+      (e.target as HTMLInputElement).value = '';
+    });
+    $('[data-remove]', box).addEventListener('click', () => { delete newImg[k]; removeImg[k] = true; renderImg(k); });
+  }
+
+  // — Annotations —
+  function renderAnnots() {
+    const wrap = $('[data-annots]'); wrap.innerHTML = '';
+    annots.forEach((a, i) => {
+      const row = document.createElement('div'); row.className = 'annot-row';
+      const num = document.createElement('span'); num.className = 'num'; num.textContent = String(i + 1);
+      const input = document.createElement('input'); input.value = a.text; input.maxLength = 60; input.placeholder = 'regard à l’infini';
+      input.addEventListener('input', () => { a.text = input.value; });
+      const place = document.createElement('button'); place.type = 'button'; place.className = 'btn ghost'; place.textContent = placing === i ? 'touche le dessin…' : 'placer';
+      place.addEventListener('click', () => { placing = placing === i ? -1 : i; renderAnnots(); });
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'btn ghost'; del.textContent = '×'; del.ariaLabel = 'Supprimer';
+      del.addEventListener('click', () => { annots.splice(i, 1); placing = -1; renderAnnots(); });
+      const pos = document.createElement('span'); pos.className = 'pos'; pos.textContent = `position : ${a.x} % / ${a.y} %`;
+      row.append(num, input, place, del, pos); wrap.append(row);
+    });
+    $<HTMLButtonElement>('[data-add-annot]').disabled = annots.length >= 4;
+    $('.annot-stage').classList.toggle('placing', placing >= 0);
+    renderMarkers();
+  }
+  function renderMarkers() {
+    const m = $('[data-markers]'); m.innerHTML = '';
+    if (!currentImg('espece')) return;
+    annots.forEach((a, i) => {
+      const d = document.createElement('span'); d.className = 'marker'; d.textContent = String(i + 1);
+      d.style.left = a.x + '%'; d.style.top = a.y + '%'; m.append(d);
+    });
+  }
+  $('[data-add-annot]').addEventListener('click', () => {
+    if (annots.length >= 4) return;
+    annots.push({ text: '', x: annots.length % 2 ? 6 : 94, y: annots.length % 2 ? 88 : 14 });
+    placing = currentImg('espece') ? annots.length - 1 : -1;
+    renderAnnots();
+  });
+  $('.annot-stage img').addEventListener('click', (e) => {
+    if (placing < 0) return;
+    const r = (e.target as HTMLElement).getBoundingClientRect();
+    const ev = e as MouseEvent;
+    annots[placing].x = Math.round(((ev.clientX - r.left) / r.width) * 100);
+    annots[placing].y = Math.round(((ev.clientY - r.top) / r.height) * 100);
+    placing = -1; renderAnnots();
+  });
+
+  // — Enregistrer / retirer —
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = $('[data-form-msg]');
+    const save = $<HTMLButtonElement>('[data-save]');
+    const metro = F('series').value === 'metro';
+    const hasFiche = metro && F('hasFiche').checked;
+    const data = {
+      n: Number(F('n').value), series: F('series').value, tech: F('tech').value,
+      title: F('title').value.trim(), latin: metro ? F('latin').value.trim() : '',
+      date: fromIso(F('date').value), lieu: F('lieu').value.trim(), alt: F('alt').value.trim(),
+      pending: F('pending').checked,
+      fiche: hasFiche
+        ? { alt: F('ficheAlt').value.trim(), habitat: F('habitat').value, cri: F('cri').value, rush: F('rush').value, crush: F('crush').value,
+            annotations: annots.filter((a) => a.text.trim()) }
+        : null,
+    };
+    if (!data.title || !data.lieu) return setMsg(msg, 'Le titre et le lieu sont obligatoires.');
+    if (!data.pending && !data.date) return setMsg(msg, 'Indique la date d’observation.');
+    if (currentImg('planche') && !data.alt) return setMsg(msg, 'Décris le dessin de la planche.');
+    save.disabled = true;
+    try {
+      const images: Record<string, object> = {};
+      for (const k of IMG_KEYS) {
+        if (newImg[k]) {
+          setMsg(msg, `Envoi de l’image « ${k} »…`, true);
+          const r = await api({ action: 'blob', base64: newImg[k]!.base64 });
+          images[k] = { blob: r.sha, ext: newImg[k]!.ext };
+        } else if (removeImg[k]) images[k] = { remove: true };
+      }
+      setMsg(msg, 'Enregistrement…', true);
+      const r = await api({ action: 'save', original: editing?.folder ?? null, data, images });
+      const img: Img = { planche: currentImg('planche'), signature: currentImg('signature'), espece: hasFiche ? currentImg('espece') : null };
+      const saved: Spec = { ...(data as any), folder: r.folder, img, latin: data.latin, fiche: data.fiche, _status: 'publication en cours' };
+      specs = specs.filter((s) => s.folder !== r.folder).concat(saved);
+      flash(`Spécimen n°${data.n} enregistré. Il sera en ligne d’ici une minute environ.`);
+    } catch (err) {
+      setMsg(msg, (err as Error).message);
+    }
+    save.disabled = false;
+  });
+
+  $('[data-delete]').addEventListener('click', async () => {
+    if (!editing || !confirm(`Retirer définitivement le spécimen n°${editing.n} « ${editing.title} » ?`)) return;
+    const btn = $<HTMLButtonElement>('[data-delete]'); btn.disabled = true;
+    try {
+      await api({ action: 'delete', folder: editing.folder });
+      specs = specs.filter((s) => s.folder !== editing!.folder);
+      flash(`Spécimen n°${editing.n} retiré. Le site sera à jour d’ici une minute environ.`);
+    } catch (err) { setMsg($('[data-form-msg]'), (err as Error).message); }
+    btn.disabled = false;
+  });
+
+  function flash(text: string) {
+    renderList(); show('list');
+    setMsg($('[data-flash]'), text, true);
+  }
+</script>

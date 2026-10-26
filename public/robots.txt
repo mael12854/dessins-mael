@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /api/
 
 Sitemap: https://dessins-mael.vercel.app/sitemap-index.xml
