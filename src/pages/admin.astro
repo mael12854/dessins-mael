@@ -174,6 +174,9 @@ const specs = await Promise.all(
   .admin-del { flex: none; min-height: 44px; padding: 0 4px; font-family: var(--font-label); font-size: 12px; color: var(--red); text-decoration: underline; text-underline-offset: 3px; }
   .admin-item .thumb { flex: none; width: 44px; aspect-ratio: 1 / 1.414; background: var(--placeholder); object-fit: cover; }
   .admin-item .t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  @media (prefers-color-scheme: dark) {
+    .imgfield img, .admin-item img.thumb { background: transparent; filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
+  }
   .admin-item .badge { font-family: var(--font-label); font-size: 11px; color: var(--red); }
 </style>
 
@@ -320,6 +323,33 @@ const specs = await Promise.all(
   }
 
   // Réduit l'image dans le navigateur avant l'envoi (≤ 2400 px, JPEG ; PNG pour la signature).
+  // Blanchit le papier et fonce les traits (le papier = la teinte la plus fréquente).
+  // Pour la signature, le papier devient transparent et le trait noir feutre.
+  function cleanPaper(ctx: CanvasRenderingContext2D, w: number, h: number, transparent: boolean) {
+    const im = ctx.getImageData(0, 0, w, h);
+    const d = im.data;
+    const n = w * h;
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < d.length; i += 4) hist[(d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0]++;
+    let acc = 0, paper = 255;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= n * 0.6) { paper = v; break; } }
+    paper = Math.max(paper, 120);
+    const curve = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) { const x = v / paper; curve[v] = x >= 0.86 ? 255 : 255 * Math.pow(x / 0.86, 1.8); }
+    // Bords du scan (ombre du scanner) : blanchis sur 0,8 %.
+    const m = transparent ? 0 : Math.round(Math.max(w, h) * 0.008);
+    for (let i = 0; i < d.length; i += 4) {
+      const p = i / 4, px = p % w, py = (p / w) | 0;
+      if (px < m || py < m || px >= w - m || py >= h - m) { d[i] = d[i + 1] = d[i + 2] = 255; continue; }
+      const r = curve[d[i]], g = curve[d[i + 1]], b = curve[d[i + 2]];
+      if (transparent) {
+        const lum = (r * 299 + g * 587 + b * 114) / 1000;
+        d[i] = 0x1a; d[i + 1] = 0x18; d[i + 2] = 0x16; d[i + 3] = Math.min(d[i + 3], 255 - lum);
+      } else { d[i] = r; d[i + 1] = g; d[i + 2] = b; }
+    }
+    ctx.putImageData(im, 0, 0);
+  }
+
   async function shrink(file: File, k: ImgKey) {
     const max = k === 'signature' ? 600 : 2400;
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
@@ -328,8 +358,9 @@ const specs = await Promise.all(
     c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
     const ctx = c.getContext('2d')!;
     const png = k === 'signature';
-    if (!png) { ctx.fillStyle = '#FFFDF8'; ctx.fillRect(0, 0, c.width, c.height); }
+    if (!png) { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height); }
     ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    cleanPaper(ctx, c.width, c.height, png);
     const type = png ? 'image/png' : 'image/jpeg';
     const url = c.toDataURL(type, 0.88);
     return { base64: url.split(',')[1], ext: png ? 'png' : 'jpg', url };
