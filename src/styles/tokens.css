@@ -28,7 +28,7 @@
   color-scheme: light;
 }
 
-/* Mode nuit : suit le réglage du système. Les planches (--sheet) restent claires. */
+/* Mode nuit : suit le réglage du système. Les dessins sont inversés (voir global.css). */
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #1B1917; --ink: #F1ECE2; --ink-2: #B9B2A6; --line: #6A645B;

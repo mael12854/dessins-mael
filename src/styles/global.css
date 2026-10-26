@@ -186,8 +186,12 @@ main { flex: 1; display: flex; flex-direction: column; }
 .texte { display: flex; flex-direction: column; gap: 10px; }
 .texte p { margin: 0; max-width: 34em; text-wrap: pretty; }
 
-/* Autoportrait : couleurs inversées en mode nuit (traits clairs sur fond sombre). */
+/* Mode nuit : dessins inversés (traits clairs, papier fondu dans le fond sombre).
+   hue-rotate garde la teinte des touches de couleur (rouge pommettes, bleu stylo). */
 @media (prefers-color-scheme: dark) {
-  .portrait-wide { background: transparent; box-shadow: none; }
-  .portrait-wide img { filter: invert(1); mix-blend-mode: screen; }
+  .sheet:not(.hatch), .portrait-wide { background: transparent; box-shadow: none; }
+  .sheet img { filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; }
+  .sheet .loading { display: none; }
+  .annot { color: var(--blue); }
+  .annot-text { background: var(--bg); }
 }
