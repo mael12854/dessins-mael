@@ -1,7 +1,7 @@
 ---
 n: 2
 series: a-la-maison
-tech: feutre
+tech: mixte
 title: "Marin, regardant ses dessins de poules"
 latin: "Dessinus poulis"
 date: "27.10.2026"
