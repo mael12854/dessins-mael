@@ -1,7 +1,7 @@
 ---
 n: 1
 series: metro
-tech: feutre
+tech: mixte
 title: "Introduction"
 date: "26.10.2026"
 lieu: "Atelier de dessin"
