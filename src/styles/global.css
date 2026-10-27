@@ -185,6 +185,10 @@ main { flex: 1; display: flex; flex-direction: column; }
 /* Texte de l'auteur sous la planche */
 .texte { display: flex; flex-direction: column; gap: 10px; }
 .texte p { margin: 0; max-width: 34em; text-wrap: pretty; }
+/* Un long lien ou un mot sans espace va à la ligne au lieu d'élargir la page. */
+.texte p, .hand.title { overflow-wrap: anywhere; }
+.texte a { color: inherit; text-decoration: underline; text-decoration-color: var(--red); text-underline-offset: 3px; }
+.texte a:hover { color: var(--red); }
 
 /* Mode nuit : dessins inversés (traits clairs, papier fondu dans le fond sombre).
    hue-rotate garde la teinte des touches de couleur (rouge pommettes, bleu stylo). */

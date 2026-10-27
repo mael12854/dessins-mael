@@ -1,0 +1,24 @@
+---
+// Texte libre d'un spécimen : un paragraphe par ligne, les adresses web deviennent des liens.
+import { paragraphs } from '../lib/specimens';
+interface Props { text?: string; class?: string }
+const { text, class: cls } = Astro.props;
+const URL_RE = /(https?:\/\/[^\s<>"]+[^\s<>".,;:!?)\]'’»])/g;
+// Lien affiché sans « https:// » ni paramètres de suivi, pour rester lisible.
+const label = (u: string) => {
+  try {
+    const x = new URL(u);
+    const s = (x.hostname.replace(/^www\./, '') + x.pathname).replace(/\/$/, '');
+    return s.length > 48 ? s.slice(0, 46) + '…' : s;
+  } catch { return u; }
+};
+const parts = (p: string) => p.split(URL_RE).map((s, i) => ({ s, link: i % 2 === 1 }));
+const list = paragraphs(text);
+---
+{list.length > 0 && (
+  <div class:list={['prose texte', cls]}>
+    {list.map((p) => (
+      <p>{parts(p).map((x) => (x.link ? <a href={x.s} rel="noopener" target="_blank">{label(x.s)}</a> : x.s))}</p>
+    ))}
+  </div>
+)}

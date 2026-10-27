@@ -1,10 +1,11 @@
 ---
+import Texte from '../../../components/Texte.astro';
 import Base from '../../../layouts/Base.astro';
 import Sheet from '../../../components/Sheet.astro';
 import PendingTag from '../../../components/PendingTag.astro';
 import Arrow from '../../../components/Arrow.astro';
 import { Image } from 'astro:assets';
-import { allSpecimens, altFor, paragraphs, pad, plancheUrl, ficheUrl, hasFiche, seriesLabel, TECH } from '../../../lib/specimens';
+import { allSpecimens, altFor, pad, plancheUrl, ficheUrl, hasFiche, seriesLabel, TECH } from '../../../lib/specimens';
 
 export async function getStaticPaths() {
   const all = await allSpecimens();
@@ -46,9 +47,7 @@ const { s, prev, next } = Astro.props;
       </figure>
     )}
 
-    {paragraphs(s.texte).length > 0 && (
-      <div class="pad prose texte">{paragraphs(s.texte).map((p) => <p>{p}</p>)}</div>
-    )}
+    <Texte text={s.texte} class="pad" />
 
     {hasFiche(s) && (
       <div class="pad" style="padding-top:4px;">
