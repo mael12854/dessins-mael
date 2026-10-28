@@ -2,11 +2,16 @@
 // de l'image d'origine (1 unité = 1 pixel du dessin). L'image elle-même
 // n'est jamais modifiée.
 
-export type FontKey = 'hand' | 'body' | 'label';
-export const FONTS: Record<FontKey, { family: string; label: string; weights: number[]; italic: boolean }> = {
-  hand: { family: 'Shantell Sans Variable', label: 'Shantell Sans — lettrage BD (titres du site)', weights: [300, 400, 500, 600, 700, 800], italic: true },
+export type FontKey = 'hand' | 'body' | 'label' | 'gochi' | 'caveat' | 'mael';
+// Ordre du menu. Shantell Sans n'est plus proposée (« retired ») mais reste lisible dans les anciens brouillons.
+export const FONTS: Record<FontKey, { family: string; label: string; weights: number[]; italic: boolean; retired?: boolean; fallback?: string }> = {
+  // Police tirée de l'écriture de Maël (Calligraphr, nettoyée). Il lui manque chiffres, ê, î, û, œ… : Gochi Hand prend le relais.
+  mael: { family: 'Maelhandwritten', label: 'Mon écriture (Maël)', weights: [400], italic: false, fallback: 'Gochi Hand' },
+  gochi: { family: 'Gochi Hand', label: 'Gochi Hand — écriture au feutre (bulles, texte)', weights: [400], italic: false },
+  caveat: { family: 'Caveat Brush', label: 'Caveat Brush — étiquettes en capitales', weights: [400], italic: false },
   body: { family: 'Atkinson Hyperlegible', label: 'Atkinson Hyperlegible — texte courant du site', weights: [400, 700], italic: true },
   label: { family: 'Courier Prime', label: 'Courier Prime — étiquettes du site', weights: [400], italic: false },
+  hand: { family: 'Shantell Sans Variable', label: 'Shantell Sans (ancienne police)', weights: [300, 400, 500, 600, 700, 800], italic: true, retired: true },
 };
 
 export const COLORS = [
@@ -112,11 +117,21 @@ export const uid = () => Math.random().toString(36).slice(2, 10);
 /** Taille de base proportionnelle au dessin (≈ 2,5 % de la hauteur). */
 export const baseSize = (d: Doc) => Math.max(16, Math.round(Math.max(d.width, d.height) * 0.025));
 
+/** Texte et bulles : Gochi Hand en minuscules (lourde en longues capitales). */
 export function newText(d: Doc, x: number, y: number): TextItem {
   const size = baseSize(d);
   return {
     id: uid(), type: 'text', x, y, width: size * 9, rotation: 0, text: 'Texte',
-    font: 'hand', size, weight: 700, italic: false, upper: true, align: 'center', color: '#1A1816', lineHeight: 1.15,
+    font: 'gochi', size, weight: 400, italic: false, upper: false, align: 'center', color: '#1A1816', lineHeight: 1.15,
+  };
+}
+
+/** Étiquette courte en capitales (« CLAIRE », « PROJECTOR 3000™ ») : Caveat Brush. */
+export function newLabel(d: Doc, x: number, y: number): TextItem {
+  const size = Math.round(baseSize(d) * 0.9);
+  return {
+    id: uid(), type: 'text', x, y, width: size * 7, rotation: 0, text: 'Étiquette',
+    font: 'caveat', size, weight: 400, italic: false, upper: true, align: 'center', color: '#1A1816', lineHeight: 1.1,
   };
 }
 
@@ -125,7 +140,7 @@ export function newBubble(d: Doc, x: number, y: number, shape: BubbleShape): Bub
   const w = size * 9, h = size * 5;
   return {
     id: uid(), type: 'bubble', shape, x, y, w, h, text: shape === 'thought' ? 'Hmm…' : 'Bonjour !',
-    font: 'hand', size, weight: 700, italic: false, upper: true, align: 'center', color: '#1A1816', lineHeight: 1.15,
+    font: 'gochi', size, weight: 400, italic: false, upper: false, align: 'center', color: '#1A1816', lineHeight: 1.15,
     fill: '#FFFFFF', stroke: '#1A1816', strokeWidth: Math.max(2, Math.round(size / 12)),
     tail: true, tailX: -w * 0.25, tailY: h * 0.95, tailWidth: Math.round(w * 0.16),
   };
@@ -141,6 +156,9 @@ export function migrate(d: Doc): Doc {
   d.layers.masks ??= { visible: true, locked: false };
   return d;
 }
+
+/** Valeur CSS de la police, avec la police de secours éventuelle. */
+export const cssFamily = (k: FontKey) => [FONTS[k].family, FONTS[k].fallback].filter(Boolean).map((f) => `"${f}"`).join(', ');
 
 export const displayText = (it: { text: string; upper: boolean }) => (it.upper ? it.text.toLocaleUpperCase('fr-FR') : it.text);
 export const fontStyle = (it: TextStyle) => `${it.italic ? 'italic ' : ''}${it.weight}`;

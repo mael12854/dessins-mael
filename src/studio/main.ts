@@ -55,7 +55,7 @@ const editor = new Editor($<HTMLDivElement>('[data-canvas]'), {
   tool: (t) => {
     document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
     const hints: Partial<Record<Tool, string>> = {
-      text: 'Touche la planche à l’endroit du texte', 'bubble-oval': 'Touche la planche pour placer la bulle',
+      text: 'Touche la planche à l’endroit du texte', label: 'Touche la planche pour placer l’étiquette', 'bubble-oval': 'Touche la planche pour placer la bulle',
       'bubble-rect': 'Touche la planche pour placer la bulle', 'bubble-thought': 'Touche la planche pour placer la pensée',
       arrow: 'Touche la planche pour placer la flèche', marker: 'Peins sur l’écriture à cacher',
     };
@@ -130,7 +130,7 @@ window.addEventListener('keydown', (e) => {
     case '0': editor.fit(); break;
     case '1': editor.actualSize(); break;
     default: {
-      const tools: Record<string, Tool> = { v: 'select', t: 'text', b: 'bubble-oval', r: 'bubble-rect', p: 'bubble-thought', a: 'arrow', f: 'marker' };
+      const tools: Record<string, Tool> = { v: 'select', t: 'text', e: 'label', b: 'bubble-oval', r: 'bubble-rect', p: 'bubble-thought', a: 'arrow', f: 'marker' };
       if (tools[k]) editor.setTool(tools[k]);
     }
   }

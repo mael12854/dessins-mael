@@ -162,7 +162,7 @@ export class Panel {
       const weight = ws.includes(it.weight) ? it.weight : ws.reduce((a, b) => (Math.abs(b - it.weight) < Math.abs(a - it.weight) ? b : a));
       set({ font: f, weight, italic: FONTS[f].italic ? it.italic : false } as Partial<Item>);
       this.render();
-    } }, ...(Object.keys(FONTS) as FontKey[]).map((k) => h('option', { value: k, selected: k === it.font }, FONTS[k].label)));
+    } }, ...(Object.keys(FONTS) as FontKey[]).filter((k) => !FONTS[k].retired || k === it.font).map((k) => h('option', { value: k, selected: k === it.font }, FONTS[k].label)));
     const weightNames: Record<number, string> = { 400: 'Normal', 500: 'Moyen', 600: 'Demi-gras', 700: 'Gras', 800: 'Très gras' };
     const weightSel = h('select', { disabled: font.weights.length < 2, onchange: (e: Event) => set({ weight: Number((e.target as HTMLSelectElement).value) } as Partial<Item>) },
       ...font.weights.map((w) => h('option', { value: w, selected: w === it.weight }, weightNames[w] ?? String(w))));

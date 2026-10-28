@@ -4,10 +4,10 @@ import Konva from 'konva';
 import { drawBubble, hitBubble, tailVisible, textBox } from './bubble';
 import {
   type ArrowItem, type BubbleItem, type Doc, type Item, type LayerKey, type StrokeItem, type TextItem,
-  FONTS, baseSize, displayText, fontStyle, layerOf, migrate, newArrow, newBubble, newText, uid,
+  FONTS, baseSize, cssFamily, displayText, fontStyle, layerOf, migrate, newArrow, newBubble, newLabel, newText, uid,
 } from './model';
 
-export type Tool = 'select' | 'text' | 'bubble-oval' | 'bubble-rect' | 'bubble-thought' | 'arrow' | 'marker';
+export type Tool = 'select' | 'text' | 'label' | 'bubble-oval' | 'bubble-rect' | 'bubble-thought' | 'arrow' | 'marker';
 export type View = 'clean' | 'original' | 'compare';
 
 export interface EditorEvents {
@@ -211,7 +211,7 @@ export class Editor {
     if (it.type === 'text') {
       (node as Konva.Text).setAttrs({
         x: it.x, y: it.y, width: it.width, rotation: it.rotation, text: displayText(it),
-        fontFamily: `"${FONTS[it.font].family}"`, fontSize: it.size, fontStyle: fontStyle(it),
+        fontFamily: cssFamily(it.font), fontSize: it.size, fontStyle: fontStyle(it),
         align: it.align, fill: it.color, lineHeight: it.lineHeight,
       });
     } else if (it.type === 'bubble') {
@@ -222,7 +222,7 @@ export class Editor {
       body.fill(it.fill);
       const box = textBox(it);
       (g.findOne('.label') as Konva.Text).setAttrs({
-        ...box, text: displayText(it), fontFamily: `"${FONTS[it.font].family}"`, fontSize: it.size,
+        ...box, text: displayText(it), fontFamily: cssFamily(it.font), fontSize: it.size,
         fontStyle: fontStyle(it), align: it.align, fill: it.color, lineHeight: it.lineHeight,
       });
     } else if (it.type === 'stroke') {
@@ -494,6 +494,7 @@ export class Editor {
   createAt(tool: Tool, x: number, y: number) {
     let it: Item;
     if (tool === 'text') it = newText(this.doc, x, y);
+    else if (tool === 'label') it = newLabel(this.doc, x, y);
     else if (tool === 'arrow') it = newArrow(this.doc, x, y);
     else it = newBubble(this.doc, x, y, tool === 'bubble-rect' ? 'rect' : tool === 'bubble-thought' ? 'thought' : 'oval');
     if (it.type === 'text') { it.x -= it.width / 2; it.y -= it.size / 2; }
@@ -591,7 +592,7 @@ export class Editor {
     if (b?.type !== 'bubble') return;
     const box = textBox(b);
     const t = new Konva.Text({
-      text: displayText(b), width: box.width, fontFamily: `"${FONTS[b.font].family}"`, fontSize: b.size,
+      text: displayText(b), width: box.width, fontFamily: cssFamily(b.font), fontSize: b.size,
       fontStyle: fontStyle(b), lineHeight: b.lineHeight, wrap: 'word',
     });
     const k = box.height / b.h;
