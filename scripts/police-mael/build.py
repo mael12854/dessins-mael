@@ -1,5 +1,6 @@
 # Construit la police « Maelhandwritten » pour le Studio à partir du fichier Calligraphr d'origine.
-# Usage : python3 -I build.py original.ttf sortie_base
+# Usage : python3 -I build.py original.ttf sortie_base [grille.json]
+#   grille.json : lettres d'une grille scannée en plus (voir trace_scan.py), prioritaires sur l'original.
 # 1. retire les petits traits parasites (restes des cases du modèle) ;
 # 2. pose les capitales sur une même ligne de base, à la même hauteur (tracés et proportions gardés) ;
 # 3. corrige le point, la ponctuation et le ë ;
@@ -11,6 +12,7 @@ from fontTools.ttLib import TTFont
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 
 src, out = sys.argv[1], sys.argv[2]
+scan_file = sys.argv[3] if len(sys.argv) > 3 else None
 f = TTFont(src)
 glyf, hmtx = f['glyf'], f['hmtx']
 cmap = f.getBestCmap()
@@ -114,6 +116,41 @@ def norm_lower_like_e(ch, base='e'):
     return tf(body + rest, k, dy=dy)
 G['ë'] = norm_lower_like_e('ë'); log.append('ë remis à la taille et à la hauteur du e')
 
+# ——— 3 bis. lettres de la grille scannée (vraies capitales accentuées, à â è…, « ») ———
+scanned = set()
+if scan_file:
+    import json
+    raw = json.load(open(scan_file))
+    def contours_of(lst): return [{'pts': [tuple(p) for p in c], 'on': [True] * len(c)} for c in lst if len(c) >= 3]
+    # Cases en double : version retenue (0 étroit pour ne pas le confondre avec O, 1 simple).
+    for ch, alt in (('0', '0b'), ('1', '1b')):
+        if alt in raw: raw[ch] = raw[alt]
+    raw = {k: v for k, v in raw.items() if not k.endswith('b')}
+    BASE = {'à': 'a', 'â': 'a', 'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e', 'î': 'i', 'ò': 'o', 'ô': 'o', 'ö': 'o', 'ù': 'u'}
+    for ch, lst in raw.items():
+        cs = contours_of(lst)
+        if not cs: continue
+        if ch == 'Ç':  # C et cédille d'un seul trait : largeur du C, haut sur la ligne des capitales
+            b = box(cs); cb = box(G['C']); k = (cb[2] - cb[0]) / (b[2] - b[0])
+            G[ch] = tf(cs, k, dy=CAP_H - b[3] * k)
+        elif ch.isupper():  # capitale : corps (sans l'accent) à la hauteur des capitales, posé sur la ligne
+            body, _ = split(cs); bb = box(body); k = CAP_H / (bb[3] - bb[1])
+            G[ch] = tf(cs, k, dy=-bb[1] * k)
+        elif ch in BASE:   # minuscule : corps à la taille et à la hauteur de la lettre de base
+            body, _ = split(cs); bb = box(body); rb = box(split(G[BASE[ch]])[0])
+            k = (rb[3] - rb[1]) / (bb[3] - bb[1]); G[ch] = tf(cs, k, dy=rb[1] - bb[1] * k)
+        elif ch.isdigit():  # chiffres : hauteur des capitales, sur la ligne
+            b = box(cs); k = CAP_H / (b[3] - b[1]); G[ch] = tf(cs, k, dy=-b[1] * k)
+        elif ch == '™':      # petit, en haut
+            b = box(cs); k = CAP_H * 0.3 / (b[3] - b[1]); G[ch] = tf(cs, k, dy=CAP_H - b[3] * k)
+        elif ch == '©':
+            b = box(cs); k = CAP_H * 0.8 / (b[3] - b[1]); G[ch] = tf(cs, k, dy=-b[1] * k)
+        elif ch in '«»':   # guillemets : petits, au milieu de la hauteur des capitales
+            b = box(cs); k = CAP_H * 0.42 / (b[3] - b[1]); G[ch] = tf(cs, k, dy=CAP_H * 0.2 - b[1] * k)
+        else: continue
+        scanned.add(ch)
+    log.append('lettres prises dans la grille scannée : ' + ''.join(sorted(scanned)))
+
 # ——— 4. accents ———
 def accent_of(ch):
     body, rest = split(G[ch]); return above(rest, box(body))
@@ -130,8 +167,10 @@ built = []
 for cap, base, acc in (('À', 'A', accent_of('à')), ('Â', 'A', circ), ('È', 'E', grave), ('É', 'E', acute),
                        ('Ê', 'E', circ), ('Ë', 'E', uml), ('Î', 'I', circ), ('Ï', 'I', uml), ('Ò', 'O', accent_of('ò')),
                        ('Ô', 'O', circ), ('Ö', 'O', uml), ('Ù', 'U', accent_of('ù')), ('Û', 'U', circ), ('Ü', 'U', uml)):
+    if cap in scanned: continue
     G[cap] = with_accent(G[base], acc, gap=45); built.append(cap)
 for low, base, acc in (('ê', 'e', circ), ('î', 'i', circ), ('ï', 'i', uml), ('û', 'u', circ), ('ü', 'u', uml)):
+    if low in scanned: continue
     G[low] = with_accent(lower_body(base), acc, gap=35); built.append(low)
 log.append('accents construits avec les accents de Maël : ' + ''.join(built))
 

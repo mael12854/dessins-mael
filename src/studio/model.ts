@@ -5,7 +5,7 @@
 export type FontKey = 'hand' | 'body' | 'label' | 'gochi' | 'caveat' | 'mael';
 // Ordre du menu. Shantell Sans n'est plus proposée (« retired ») mais reste lisible dans les anciens brouillons.
 export const FONTS: Record<FontKey, { family: string; label: string; weights: number[]; italic: boolean; retired?: boolean; fallback?: string }> = {
-  // Police tirée de l'écriture de Maël (Calligraphr, nettoyée). Il lui manque chiffres, ê, î, û, œ… : Gochi Hand prend le relais.
+  // Police tirée de l'écriture de Maël (Calligraphr, nettoyée). Il lui manque encore - ( ) … / & @ € % œ… : Gochi Hand prend le relais.
   mael: { family: 'Maelhandwritten', label: 'Mon écriture (Maël)', weights: [400], italic: false, fallback: 'Gochi Hand' },
   gochi: { family: 'Gochi Hand', label: 'Gochi Hand — écriture au feutre (bulles, texte)', weights: [400], italic: false },
   caveat: { family: 'Caveat Brush', label: 'Caveat Brush — étiquettes en capitales', weights: [400], italic: false },
