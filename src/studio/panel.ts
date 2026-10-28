@@ -1,5 +1,5 @@
 // Panneau latéral : propriétés de l'élément sélectionné, ou calques.
-import type { Editor } from './editor';
+import { isDraw, type Editor } from './editor';
 import { COLORS, FONTS, type BubbleItem, type FontKey, type Item, type LayerKey, type StrokeItem, type TextItem, baseSize, describe, layerOf } from './model';
 
 type El = HTMLElement;
@@ -59,7 +59,7 @@ export class Panel {
         h('button', { type: 'button', role: 'tab', class: this.tab === 'props' ? 'on' : '', 'aria-selected': String(this.tab === 'props'), disabled: !it, onclick: () => this.setTab('props') }, 'Propriétés'),
         h('button', { type: 'button', role: 'tab', class: this.tab === 'layers' ? 'on' : '', 'aria-selected': String(this.tab === 'layers'), onclick: () => this.setTab('layers') }, 'Calques')),
       h('div', { class: 'panel-body' },
-        this.ed.tool === 'marker' && !it ? this.markerSettings() : null,
+        isDraw(this.ed.tool) && !it ? this.markerSettings() : null,
         this.tab === 'props' && it ? this.props(it) : this.layers()),
     );
   }
@@ -75,12 +75,20 @@ export class Panel {
 
   private markerSettings(): El {
     const ed = this.ed;
+    if (ed.tool === 'pen') {
+      return h('div', { class: 'props marker-box' },
+        h('h3', { class: 'p-title' }, 'Stylo'),
+        h('p', { class: 'hint' }, 'Dessine directement sur la feuille, à la souris, au doigt ou au stylet. Deux doigts pour zoomer, Ctrl+Z pour annuler un trait.'),
+        field('Épaisseur', number(ed.pen.size, 1, Math.max(40, baseSize(ed.doc) * 2), 1, (v) => ed.setBrush({ size: v }))),
+        field('Couleur', colorPicker(ed.pen.color, (v) => { ed.setBrush({ color: v }); this.render(); })),
+      );
+    }
     const max = Math.max(60, baseSize(ed.doc) * 8);
     return h('div', { class: 'props marker-box' },
       h('h3', { class: 'p-title' }, 'Gros feutre'),
       h('p', { class: 'hint' }, 'Peins par-dessus ton écriture pour la cacher, puis ajoute un texte avec l’outil « Texte ». Deux doigts pour zoomer.'),
-      field('Épaisseur', number(ed.marker.size, 4, max, 1, (v) => ed.setMarker({ size: v }))),
-      field('Couleur', this.strokeColorPicker(ed.marker.color, (v) => { ed.setMarker({ color: v }); this.render(); })),
+      field('Épaisseur', number(ed.marker.size, 4, max, 1, (v) => ed.setBrush({ size: v }))),
+      field('Couleur', this.strokeColorPicker(ed.marker.color, (v) => { ed.setBrush({ color: v }); this.render(); })),
     );
   }
 
@@ -97,7 +105,7 @@ export class Panel {
     const ed = this.ed;
     const set = (p: Partial<Item>) => ed.patch(it.id, p);
     const wrap = h('div', { class: 'props' });
-    const title = it.type === 'text' ? 'Texte' : it.type === 'arrow' ? 'Flèche' : it.type === 'stroke' ? 'Trait de feutre' : it.shape === 'thought' ? 'Bulle de pensée' : 'Bulle';
+    const title = it.type === 'text' ? 'Texte' : it.type === 'arrow' ? 'Flèche' : it.type === 'stroke' ? (it.color === 'auto' ? 'Trait de feutre' : 'Trait') : it.shape === 'thought' ? 'Bulle de pensée' : 'Bulle';
     wrap.append(h('h3', { class: 'p-title' }, title));
 
     if (it.type === 'stroke') {
@@ -195,7 +203,7 @@ export class Panel {
         items.length
           ? h('ol', { class: 'layer-items' }, ...items.map((x) => h('li', {},
               h('button', { type: 'button', class: sel?.id === x.id ? 'on' : '', disabled: L.locked || !L.visible, onclick: () => { ed.select(x.id); this.setTab('props'); } }, describe(x)))))
-          : h('p', { class: 'hint' }, key === 'texts' ? 'Outil « Texte », puis touche le dessin.' : key === 'masks' ? 'Outil « Feutre » : peins sur l’écriture à cacher.' : 'Outils « Bulle », « Pensée » ou « Flèche ».'),
+          : h('p', { class: 'hint' }, key === 'texts' ? 'Outil « Texte », puis touche le dessin.' : key === 'masks' ? 'Outils « Stylo » pour dessiner, « Feutre » pour cacher une écriture.' : 'Outils « Bulle », « Pensée » ou « Flèche ».'),
       );
     };
     const draw = d.layers.drawing;
@@ -203,7 +211,7 @@ export class Panel {
       h('p', { class: 'hint' }, 'Du plus en avant au plus en arrière.'),
       section('texts', 'Textes'),
       section('bubbles', 'Bulles et annotations'),
-      section('masks', 'Corrections au feutre'),
+      section('masks', 'Traits (stylo, feutre)'),
       h('section', { class: 'layer' + (draw.visible ? '' : ' hidden') },
         h('header', { class: 'layer-head' },
           h('strong', {}, 'Dessin original'),

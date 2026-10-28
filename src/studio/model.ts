@@ -165,7 +165,7 @@ export const fontStyle = (it: TextStyle) => `${it.italic ? 'italic ' : ''}${it.w
 
 export function describe(it: Item): string {
   if (it.type === 'arrow') return 'Flèche';
-  if (it.type === 'stroke') return `Trait de feutre${it.color === 'auto' ? ' (couleur du papier)' : ''}`;
+  if (it.type === 'stroke') return it.color === 'auto' ? 'Trait de feutre (couleur du papier)' : 'Trait';
   const t = it.text.replace(/\s+/g, ' ').trim() || '(vide)';
   const short = t.length > 28 ? t.slice(0, 27) + '…' : t;
   if (it.type === 'text') return short;

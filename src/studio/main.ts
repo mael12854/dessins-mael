@@ -57,13 +57,13 @@ const editor = new Editor($<HTMLDivElement>('[data-canvas]'), {
     const hints: Partial<Record<Tool, string>> = {
       text: 'Touche la planche à l’endroit du texte', label: 'Touche la planche pour placer l’étiquette', 'bubble-oval': 'Touche la planche pour placer la bulle',
       'bubble-rect': 'Touche la planche pour placer la bulle', 'bubble-thought': 'Touche la planche pour placer la pensée',
-      arrow: 'Touche la planche pour placer la flèche', marker: 'Peins sur l’écriture à cacher',
+      arrow: 'Touche la planche pour placer la flèche', marker: 'Peins sur l’écriture à cacher', pen: 'Dessine sur la feuille',
     };
     const hint = $('[data-tool-hint]');
     hint.textContent = hints[t] ?? '';
     hint.hidden = !hints[t];
     panel.render();
-    if (t === 'marker' && matchMedia('(pointer: coarse)').matches) document.body.classList.remove('sheet-open');
+    if ((t === 'marker' || t === 'pen') && matchMedia('(pointer: coarse)').matches) document.body.classList.remove('sheet-open');
   },
   zoom: (s) => { $('[data-zoom-label]').textContent = `${Math.round(s * 100)} %`; },
   history: (u, r) => { $<HTMLButtonElement>('[data-undo]').disabled = !u; $<HTMLButtonElement>('[data-redo]').disabled = !r; },
@@ -130,7 +130,7 @@ window.addEventListener('keydown', (e) => {
     case '0': editor.fit(); break;
     case '1': editor.actualSize(); break;
     default: {
-      const tools: Record<string, Tool> = { v: 'select', t: 'text', e: 'label', b: 'bubble-oval', r: 'bubble-rect', p: 'bubble-thought', a: 'arrow', f: 'marker' };
+      const tools: Record<string, Tool> = { v: 'select', t: 'text', e: 'label', b: 'bubble-oval', r: 'bubble-rect', p: 'bubble-thought', a: 'arrow', f: 'marker', s: 'pen' };
       if (tools[k]) editor.setTool(tools[k]);
     }
   }
@@ -253,6 +253,24 @@ async function createFromBlob(blob: Blob, name: string, folder: string | null = 
     await openProject(rec);
   } finally { setBusy(null); }
 }
+
+// Feuille blanche : un « original » blanc, puis on dessine au stylo.
+const SHEETS: Record<string, [number, number, string]> = {
+  portrait: [2480, 3508, 'A4 portrait'], paysage: [3508, 2480, 'A4 paysage'], carre: [2480, 2480, 'Carré'],
+};
+document.querySelectorAll<HTMLButtonElement>('[data-blank]').forEach((b) => b.addEventListener('click', async () => {
+  const [w, h, label] = SHEETS[b.dataset.blank!];
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, w, h);
+  const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+  if (!blob) { alert('Impossible de créer la feuille.'); return; }
+  try {
+    await createFromBlob(blob, `Dessin — ${label}`);
+    editor.setTool('pen');
+  } catch (err) { alert((err as Error).message); }
+}));
 
 $<HTMLInputElement>('[data-import]').addEventListener('change', async (e) => {
   const input = e.target as HTMLInputElement;

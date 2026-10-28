@@ -7,7 +7,9 @@ import {
   FONTS, baseSize, cssFamily, displayText, fontStyle, layerOf, migrate, newArrow, newBubble, newLabel, newText, uid,
 } from './model';
 
-export type Tool = 'select' | 'text' | 'label' | 'bubble-oval' | 'bubble-rect' | 'bubble-thought' | 'arrow' | 'marker';
+export type Tool = 'select' | 'text' | 'label' | 'bubble-oval' | 'bubble-rect' | 'bubble-thought' | 'arrow' | 'marker' | 'pen';
+/** Outils qui tracent à main levée (gros feutre pour cacher, stylo pour dessiner). */
+export const isDraw = (t: Tool) => t === 'marker' || t === 'pen';
 export type View = 'clean' | 'original' | 'compare';
 
 export interface EditorEvents {
@@ -47,6 +49,9 @@ export class Editor {
   private drawing: { line: Konva.Line; points: number[] } | null = null;
   /** Réglages du gros feutre. */
   marker = { size: 0, color: 'auto' as string };
+  pen = { size: 0, color: '#1A1816' as string };
+  /** Réglages de l'outil de tracé actif. */
+  get brush() { return this.tool === 'pen' ? this.pen : this.marker; }
   /** Couleur du papier de l'original (pour le feutre « couleur du fond »). */
   private paper = '#FFFFFF';
 
@@ -83,6 +88,7 @@ export class Editor {
     this.doc = migrate(doc);
     this.paper = paper;
     if (!this.marker.size) this.marker.size = Math.round(baseSize(doc) * 1.4);
+    if (!this.pen.size) this.pen.size = Math.max(3, Math.round(baseSize(doc) * 0.12));
     this.origImg.setAttrs({ image: orig, width: doc.width, height: doc.height });
     this.cleanImg.setAttrs({ image: clean, width: doc.width, height: doc.height });
     this.history = [JSON.stringify(doc)];
@@ -191,7 +197,7 @@ export class Editor {
     }
     node.on('mousedown touchstart', (e) => {
       if (window.TouchEvent && e.evt instanceof TouchEvent && e.evt.touches.length > 1) return;
-      if (this.tool === 'marker') return; // on dessine par-dessus
+      if (isDraw(this.tool)) return; // on dessine par-dessus
       if (it.type === 'stroke' && this.tool !== 'select') return; // on écrit par-dessus le feutre
       if (this.tool !== 'select') this.setTool('select');
       this.select(it.id);
@@ -228,7 +234,7 @@ export class Editor {
     } else if (it.type === 'stroke') {
       (node as unknown as Konva.Line).setAttrs({
         x: 0, y: 0, points: it.points, strokeWidth: it.size, stroke: this.strokeColor(it.color),
-        hitStrokeWidth: Math.max(it.size, 20), draggable: this.tool !== 'marker',
+        hitStrokeWidth: Math.max(it.size, 20), draggable: !isDraw(this.tool),
       });
     } else {
       const len = Math.hypot(it.x2 - it.x1, it.y2 - it.y1) || 1;
@@ -351,14 +357,21 @@ export class Editor {
 
   // ————— Outils et interactions —————
   setTool(t: Tool) {
-    const wasMarker = this.tool === 'marker';
+    const wasDraw = isDraw(this.tool);
     this.tool = t;
-    this.container.style.cursor = t === 'select' ? 'default' : t === 'marker' ? 'none' : 'crosshair';
-    this.stage.draggable(t !== 'marker');
-    if (t !== 'marker') { this.brushCursor.visible(false); this.ui.batchDraw(); }
+    this.container.style.cursor = t === 'select' ? 'default' : isDraw(t) ? 'none' : 'crosshair';
+    this.stage.draggable(!isDraw(t));
+    if (!isDraw(t)) { this.brushCursor.visible(false); this.ui.batchDraw(); }
     if (t !== 'select') this.select(null);
-    if (wasMarker !== (t === 'marker')) this.render(); // traits déplaçables ou non
+    if (wasDraw !== isDraw(t)) this.render(); // traits déplaçables ou non
     this.ev.tool(t);
+  }
+
+  /** Règle l'outil de tracé actif (feutre ou stylo). */
+  setBrush(p: Partial<{ size: number; color: string }>) {
+    Object.assign(this.brush, p);
+    this.brushCursor.radius(this.brush.size / 2);
+    this.ui.batchDraw();
   }
 
   setMarker(p: Partial<{ size: number; color: string }>) {
@@ -389,7 +402,7 @@ export class Editor {
     const p = this.masks.getRelativePointerPosition();
     if (!p) return;
     const line = new Konva.Line({
-      points: [p.x, p.y, p.x + 0.01, p.y], stroke: this.strokeColor(this.marker.color), strokeWidth: this.marker.size,
+      points: [p.x, p.y, p.x + 0.01, p.y], stroke: this.strokeColor(this.brush.color), strokeWidth: this.brush.size,
       lineCap: 'round', lineJoin: 'round', tension: 0.35, listening: false,
     });
     this.masks.add(line);
@@ -400,14 +413,14 @@ export class Editor {
   private moveStroke() {
     const p = this.masks.getRelativePointerPosition();
     if (!p) return;
-    if (this.tool === 'marker' && !this.pinch) {
-      this.brushCursor.setAttrs({ x: p.x, y: p.y, radius: this.marker.size / 2, strokeWidth: 1.5 / this.stage.scaleX(), visible: true });
+    if (isDraw(this.tool) && !this.pinch) {
+      this.brushCursor.setAttrs({ x: p.x, y: p.y, radius: Math.max(this.brush.size / 2, 3 / this.stage.scaleX()), strokeWidth: 1.5 / this.stage.scaleX(), visible: true });
       this.ui.batchDraw();
     }
     const d = this.drawing;
     if (!d) return;
     const n = d.points.length;
-    if (Math.hypot(p.x - d.points[n - 2], p.y - d.points[n - 1]) < Math.max(1, this.marker.size * 0.08)) return;
+    if (Math.hypot(p.x - d.points[n - 2], p.y - d.points[n - 1]) < Math.max(1, this.brush.size * 0.08)) return;
     d.points.push(p.x, p.y);
     d.line.points(d.points);
     this.masks.batchDraw();
@@ -419,7 +432,7 @@ export class Editor {
     this.drawing = null;
     d.line.destroy();
     const pts = d.points.length >= 4 ? d.points : [d.points[0], d.points[1], d.points[0] + 0.01, d.points[1]];
-    const it: StrokeItem = { id: uid(), type: 'stroke', points: pts.map((v) => Math.round(v * 10) / 10), size: this.marker.size, color: this.marker.color };
+    const it: StrokeItem = { id: uid(), type: 'stroke', points: pts.map((v) => Math.round(v * 10) / 10), size: this.brush.size, color: this.brush.color };
     this.add(it);
   }
 
@@ -436,7 +449,7 @@ export class Editor {
     st.on('dragmove', (e) => { if (e.target === st) this.placeHandles(); });
     st.on('click tap', (e) => {
       if (this.panned) { this.panned = false; return; }
-      if (this.tool === 'marker') return;
+      if (isDraw(this.tool)) return;
       const t = e.target;
       const onBackground = t === st || t.hasName('bg') || (t.getLayer() === this.masks && this.tool !== 'select');
       if (!onBackground) return;
@@ -445,7 +458,7 @@ export class Editor {
       if (!p) return;
       this.createAt(this.tool, p.x, p.y);
     });
-    st.on('mousedown touchstart', (e) => { this.panned = false; if (this.tool === 'marker') this.startStroke(e); });
+    st.on('mousedown touchstart', (e) => { this.panned = false; if (isDraw(this.tool)) this.startStroke(e); });
     st.on('mousemove touchmove', () => this.moveStroke());
     st.on('mouseup touchend', () => this.endStroke());
     st.on('mouseleave', () => { this.brushCursor.visible(false); this.ui.batchDraw(); });
