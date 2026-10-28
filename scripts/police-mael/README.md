@@ -18,6 +18,11 @@ cp /tmp/mael.woff public/fonts/maelhandwritten.woff
 - retire les taches et petits traits parasites ;
 - pose les capitales et les chiffres sur une même ligne, à la même hauteur, et égalise l'épaisseur du trait ;
 - réduit le point et le pose sur la ligne ; remet le ë à la taille du e ;
-- prend les lettres de la grille en priorité ; compose Ï Û Ü ï û ü avec les accents de Maël.
+- prend les lettres de la grille en priorité ; compose Ï Û Ü ï û ü avec les accents de Maël ;
+- pose les minuscules sur une même ligne (sans changer leur taille) ;
+- écriture attachée : les minuscules qui finissent en bas à droite reçoivent une variante avec une courte liaison,
+  employée seulement quand une minuscule suit (fonction OpenType `calt`), puis chaque paire de minuscules est
+  rapprochée jusqu'à ce que les traits se touchent, sans écraser les corps des lettres (crénage `kern`).
+  Les lettres qui finissent en haut (c o v w b r) ou ont un jambage (g j p q y z f) n'ont pas de liaison.
 
 Encore à dessiner : - – ( ) … / & @ € % ° · œ æ Œ Æ. En attendant, Gochi Hand les remplace dans le Studio.

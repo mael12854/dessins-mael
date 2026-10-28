@@ -16,7 +16,11 @@ scan_file = sys.argv[3] if len(sys.argv) > 3 else None
 f = TTFont(src)
 glyf, hmtx = f['glyf'], f['hmtx']
 cmap = f.getBestCmap()
-SIDE = 45          # approche de chaque côté (sur 1000)
+SIDE = 45          # approche de chaque côté (sur 1000) : capitales, chiffres, ponctuation
+# Minuscules attachées : approche nulle, puis crénage paire par paire (étape 7) pour que les traits se touchent.
+import os
+SIDE_LOW = int(os.environ.get('SIDE_LOW', '0'))
+joined = lambda ch: ch.isalpha() and ch.islower()
 CAP_H = 480        # hauteur des capitales
 X_BOTTOM, X_H = 0, 230  # minuscules : ligne de base et hauteur d'x visées pour ë (alignées sur e)
 log = []
@@ -94,6 +98,22 @@ def norm_cap(cs):
 for ch in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
     G[ch] = norm_cap(G[ch])
 log.append(f'capitales A–Z posées sur la ligne, hauteur {CAP_H}')
+
+# ——— 2 bis. minuscules sur une même ligne (sans changer leur taille) ———
+# Dans le fichier Calligraphr, chaque minuscule flotte à sa hauteur (bas du a à 55, du u à 98…) :
+# les liaisons de l'écriture attachée passeraient sous la lettre suivante.
+def core(cs):  # sans les points et accents (éléments situés en haut)
+    b = box(cs); mid = (b[1] + b[3]) / 2
+    return [c for c in cs if box([c])[1] < mid] or cs
+X_LETTERS, ASC, DESC = 'acemnorsuvwxi', 'bdhklt', 'gjpqyz'
+for ch in X_LETTERS + ASC:
+    G[ch] = tf(G[ch], dy=-box(core(G[ch]))[1])
+XH = sorted(box(core(G[ch]))[3] for ch in X_LETTERS if ch != 'i')[len(X_LETTERS) // 2 - 1]
+for ch in DESC:  # le haut du corps à la hauteur des minuscules
+    G[ch] = tf(G[ch], dy=XH - box(core(G[ch]))[3])
+asc_top = sorted(box(G[ch])[3] for ch in ASC)[len(ASC) // 2]
+G['f'] = tf(G['f'], dy=asc_top - box(G['f'])[3])
+log.append(f'minuscules posées sur la ligne (hauteur d’x {XH:.0f})')
 
 # ——— 3. ponctuation et ë ———
 def place(cs, height, bottom):
@@ -230,6 +250,7 @@ log.append(f'épaisseur du trait égalisée à {TARGET:.0f} (avant : {min(letter
 # ——— 6. écriture, glyphes nouveaux, approches ———
 order = f.getGlyphOrder()
 written = set()
+FINAL = {}
 for ch, cs in G.items():
     if not cs: continue
     if ch in name_of and name_of[ch] in written:  # glyphe partagé (À et à) : la capitale a son propre dessin
@@ -239,12 +260,84 @@ for ch, cs in G.items():
         for t in f['cmap'].tables:
             if t.isUnicode(): t.cmap[ord(ch)] = gname
     b = box(cs)
-    cs = tf(cs, dx=SIDE - b[0])
+    side = SIDE_LOW if joined(ch) else SIDE
+    cs = tf(cs, dx=side - b[0])
     write(name_of[ch], cs)
-    hmtx[name_of[ch]] = (int(round(b[2] - b[0] + 2 * SIDE)), SIDE)
+    hmtx[name_of[ch]] = (int(round(b[2] - b[0] + 2 * side)), side)
     written.add(name_of[ch])
+    FINAL[ch] = (cs, hmtx[name_of[ch]][0])
 f.setGlyphOrder(order)
 f['maxp'].numGlyphs = len(order)
+
+# ——— 7. écriture attachée : liaisons et crénage paire par paire ———
+# Chaque minuscule reçoit une variante « .join » avec un court trait de sortie, partant de son point le plus
+# à droite. La police ne l'emploie (fonction calt) que si une minuscule suit : la fin des mots reste nette.
+# Puis on rapproche chaque paire jusqu'à ce que la liaison touche la lettre suivante, sans écraser les corps.
+from shapely.geometry import LineString
+BIN = 8
+def profile(cs):
+    lo, hi = {}, {}
+    for c in cs:
+        pts = c['pts']
+        for i in range(len(pts)):
+            (x1, y1), (x2, y2) = pts[i], pts[(i + 1) % len(pts)]
+            n = max(1, int(max(abs(x2 - x1), abs(y2 - y1)) / 4))
+            for k in range(n + 1):
+                x = x1 + (x2 - x1) * k / n; y = y1 + (y2 - y1) * k / n; bi = int(y // BIN)
+                lo[bi] = min(lo.get(bi, x), x); hi[bi] = max(hi.get(bi, x), x)
+    return lo, hi
+TOUCH = round(TARGET * 0.45)   # léger chevauchement : les deux traits se fondent
+# Bande du milieu (corps des lettres) : écart minimum à garder entre deux corps.
+eb = box(FINAL['e'][0]); XB, XT = eb[1] + 0.3 * (eb[3] - eb[1]), eb[1] + 0.8 * (eb[3] - eb[1])
+BODY_GAP = int(os.environ.get('BODY_GAP', '35'))
+TAIL = BODY_GAP + TOUCH + int(os.environ.get('TAIL_EXTRA', '10'))   # longueur de la liaison au-delà du point le plus à droite
+lows = [ch for ch in FINAL if joined(ch)]
+JOIN = {}
+for ch in lows:
+    cs, adv = FINAL[ch]
+    cand = [c for c in cs if box([c])[1] < XT]           # sans les accents ni les points
+    pts = [p for c in cand for p in c['pts']]
+    low_pts = [p for p in pts if eb[1] - 20 <= p[1] <= XB]   # bas de la lettre, là où part la liaison
+    gb = box(cand)
+    # Liaison seulement si le trait finit vraiment en bas à droite (pas pour les jambages g j p q y z f,
+    # ni pour les lettres qui finissent en haut comme c o v w b r : elles se collent par le crénage seul).
+    if not low_pts or ch in 'gjpqyzfçcovwbr' or max(p[0] for p in low_pts) < gb[2] - 0.15 * (gb[2] - gb[0]):
+        JOIN[ch] = (cs, adv); continue
+    xr, yr = max(low_pts, key=lambda p: (p[0], -p[1]))
+    tail = LineString([(xr - TARGET, yr), (xr + TAIL, yr)]).buffer(TARGET / 2, quad_segs=4)
+    geo = shape(cs).union(tail).simplify(0.6)
+    JOIN[ch] = (from_shape(geo), adv)
+order = f.getGlyphOrder()
+for ch, (cs, adv) in JOIN.items():
+    g = name_of[ch] + '.join'; order.append(g); write(g, cs); hmtx[g] = (adv, int(box(cs)[0]))
+f.setGlyphOrder(order); f['maxp'].numGlyphs = len(order)
+
+base_prof = {ch: profile(FINAL[ch][0]) for ch in lows}
+join_prof = {ch: profile(JOIN[ch][0]) for ch in lows}
+pairs = []
+for a in lows:
+    adv = FINAL[a][1]; hiJ = join_prof[a][1]; hiB = base_prof[a][1]
+    for bch in lows:
+        loB = base_prof[bch][0]
+        common = set(hiJ) & set(loB)
+        if not common: continue
+        kern = -min(adv - hiJ[k] + loB[k] for k in common) - TOUCH          # la liaison touche la lettre suivante
+        mid = [k for k in set(hiB) & set(loB) if XB <= k * BIN <= XT]
+        if mid:  # corps (sans liaison) jamais plus proches que BODY_GAP
+            kern = max(kern, BODY_GAP - min(adv - hiB[k] + loB[k] for k in mid))
+        kern = int(round(max(-260, min(120, kern))))
+        if abs(kern) >= 4:
+            pairs.append((name_of[a] + '.join', name_of[bch], kern))
+            pairs.append((name_of[a] + '.join', name_of[bch] + '.join', kern))
+from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
+low = ' '.join(name_of[c] for c in lows)
+fea = ('languagesystem DFLT dflt;\nlanguagesystem latn dflt;\n'
+       f'@LOW = [{low}];\n@LOWJ = [{" ".join(name_of[c] + ".join" for c in lows)}];\n'
+       'lookup TOJOIN { sub @LOW by @LOWJ; } TOJOIN;\n'
+       "feature calt { sub @LOW' lookup TOJOIN @LOW; } calt;\n"
+       'feature kern {\n' + ''.join(f'  pos {x} {y} {k};\n' for x, y, k in pairs) + '} kern;\n')
+addOpenTypeFeaturesFromString(f, fea)
+log.append(f'écriture attachée : {sum(JOIN[c][0] is not FINAL[c][0] for c in JOIN)} minuscules avec liaison, {len(pairs) // 2} paires rapprochées')
 f['name'].setName('Maelhandwritten', 1, 3, 1, 0x409)
 f['name'].setName('Maelhandwritten Regular', 4, 3, 1, 0x409)
 f.save(out + '.ttf'); f.flavor = 'woff'; f.save(out + '.woff')
