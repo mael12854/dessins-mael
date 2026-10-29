@@ -2,7 +2,7 @@
 n: 4
 series: a-la-maison
 tech: mixte
-title: "Marin, recevant ses feutres de dessins"
+title: "Marin, recevant ses feutres de dessin"
 date: "29.10.2026"
 lieu: "À la maison"
 image: ./planche.png
