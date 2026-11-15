@@ -15,6 +15,8 @@ export async function getStaticPaths() {
   }));
 }
 const { s, prev, next } = Astro.props;
+const extra = s.pending ? [] : (s.pages ?? []);
+const total = 1 + extra.length;
 ---
 <Base title={`Spécimen n°${s.n} — ${s.title}`} description={`${s.title} : spécimen n°${s.n} de la série « ${seriesLabel(s.series)} », dessiné ${s.tech === 'numerique' ? 'sur ordinateur' : 'au feutre noir'}. Observé ${s.pending ? 'en ce moment' : `le ${s.date}`}, ${s.lieu}.`}>
   <section style="display:flex;flex-direction:column;gap:16px;padding-top:26px;">
@@ -37,7 +39,7 @@ const { s, prev, next } = Astro.props;
       <figure style="margin:0;display:flex;flex-direction:column;gap:8px;">
         <Sheet image={s.image} alt={altFor(s)} eager />
         <figcaption class="pad" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
-          <span class="caption">planche n°{pad(s.n)} — {TECH[s.tech]}</span>
+          <span class="caption">planche n°{pad(s.n)}{total > 1 && ` — page 1 sur ${total}`} — {TECH[s.tech]}</span>
           {s.signature ? (
             <Image src={s.signature} alt="signature" class="signature-img" width={184} format="webp" />
           ) : (
@@ -46,6 +48,13 @@ const { s, prev, next } = Astro.props;
         </figcaption>
       </figure>
     )}
+
+    {extra.map((p, i) => (
+      <figure style="margin:0;display:flex;flex-direction:column;gap:8px;">
+        <Sheet image={p.image} alt={p.alt || `${altFor(s)} — page ${i + 2} sur ${total}`} />
+        <figcaption class="pad"><span class="caption">planche n°{pad(s.n)} — page {i + 2} sur {total}</span></figcaption>
+      </figure>
+    ))}
 
     <Texte text={s.texte} class="pad" />
 

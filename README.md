@@ -31,6 +31,7 @@ Après un changement de variable, redéployer le site (Vercel → Deployments �
 - **Export** : « PNG » télécharge l'image finale à la taille exacte du dessin.
 - **Publication** : « Publier… » montre l'aperçu, puis ouvre le formulaire de l'admin avec l'image (nouveau spécimen, ou planche / dessin de fiche d'un spécimen existant). Rien n'est publié avant « Enregistrer ». L'image part en PNG sans perte si elle tient dans la limite d'envoi de Vercel (~3 Mo) ; sinon en JPEG haute qualité, puis réduite si besoin (le message l'indique).
 - Depuis la fiche d'un spécimen dans l'admin, « Retoucher dans le Studio » rouvre le dessin publié.
+- **Dessins à plusieurs pages** : importer un PDF (ou plusieurs images d'un coup) crée un dessin à pages, une page par page du PDF (rendue à 300 ppp, 30 pages au maximum). La barre en haut du dessin passe d'une page à l'autre, ajoute des pages (« + page ») ou en retire. « Publier… » envoie toutes les pages : la page 1 devient la planche, les suivantes `page-2`, `page-3`… du spécimen, affichées à la suite sur le site. Dans l'admin, la rubrique « Pages suivantes » permet aussi d'en ajouter, d'en retirer ou de les réordonner.
 
 Raccourcis : V sélection, S stylo, F feutre, T texte, E étiquette, B bulle, R bulle carrée, P pensée, A flèche, Suppr, Ctrl+Z / Ctrl+Maj+Z, Ctrl+D dupliquer, flèches pour déplacer, + / − / 0 / 1 pour le zoom, Entrée pour modifier le texte. Ils sont désactivés pendant la saisie.
 

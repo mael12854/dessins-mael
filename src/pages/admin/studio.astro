@@ -12,7 +12,7 @@ const entries = (await getCollection('specimens')).sort((a, b) => b.data.n - a.d
 const specs = entries.map(({ id, data: d }) => ({
   folder: id, n: d.n, title: d.title,
   fiche: !!SERIES_LIST.find((x) => x.id === d.series)?.fiche,
-  orig: { planche: d.image?.src ?? null, espece: d.fiche?.image?.src ?? null },
+  orig: { planche: d.image?.src ?? null, espece: d.fiche?.image?.src ?? null, pages: (d.pages ?? []).map((p) => p.image.src) },
 }));
 
 const icon = (d: string) => `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -53,9 +53,9 @@ const tools = [
         <a class="btn ghost" href="/admin">← Admin</a>
       </header>
       <label class="drop" data-drop>
-        <input type="file" accept="image/*" data-import hidden />
+        <input type="file" accept="image/*,application/pdf,.pdf" multiple data-import hidden />
         <span class="hand drop-title">Importer un dessin</span>
-        <span class="meta">Touche ici pour choisir une image, ou glisse-la dans ce cadre.</span>
+        <span class="meta">Touche ici pour choisir une image ou un PDF, ou glisse-le dans ce cadre. Un PDF de plusieurs pages (ou plusieurs images choisies ensemble) devient un dessin à pages.</span>
       </label>
       <div class="blank">
         <span class="hand drop-title">Ou dessiner sur une feuille blanche</span>
@@ -111,6 +111,13 @@ const tools = [
       <div class="stage-wrap">
         <div class="canvas" data-canvas></div>
         <div class="compare-labels" data-compare-labels hidden><span>Original</span><span>Nettoyé</span></div>
+        <div class="pagebar" data-pagebar hidden role="group" aria-label="Pages du dessin">
+          <button type="button" class="pb" data-page-prev title="Page précédente" aria-label="Page précédente">‹</button>
+          <select data-page-select aria-label="Page"></select>
+          <button type="button" class="pb" data-page-next title="Page suivante" aria-label="Page suivante">›</button>
+          <label class="pb add" title="Ajouter des pages (images ou PDF)"><input type="file" accept="image/*,application/pdf,.pdf" multiple data-page-add hidden />+ page</label>
+          <button type="button" class="pb remove" data-page-remove hidden title="Retirer cette page">retirer</button>
+        </div>
         <div class="tool-hint" data-tool-hint aria-live="polite" hidden></div>
       </div>
 
@@ -249,6 +256,15 @@ const tools = [
 
   .stage-wrap { grid-area: stage; position: relative; min-width: 0; min-height: 0; background: var(--studio-bg); }
   .canvas { position: absolute; inset: 0; touch-action: none; }
+  .pagebar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; width: max-content; max-width: calc(100% - 16px); white-space: nowrap;
+    background: var(--bg); border: 1.5px solid var(--ink); border-radius: 8px; padding: 3px; font-family: var(--font-label); font-size: 13px; z-index: 2; }
+  .pagebar select { font: inherit; color: var(--ink); background: var(--bg); border: 0; padding: 4px 2px; min-height: 32px; width: auto; }
+  .pagebar > * { flex: none; }
+  .pagebar .pb { min-width: 32px; min-height: 32px; padding: 0 8px; border: 0; background: none; color: var(--ink); font: inherit; font-size: 16px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; }
+  .pagebar .pb:hover { background: var(--studio-bg); }
+  .pagebar .pb[disabled] { opacity: .35; pointer-events: none; }
+  .pagebar .pb.add, .pagebar .pb.remove { font-size: 13px; border-left: 1px solid var(--edge); border-radius: 0; margin-left: 2px; padding: 0 10px; }
+  .pagebar .pb.remove { color: var(--red); }
   .compare-labels { position: absolute; top: 10px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 12px; pointer-events: none; }
   .tool-hint { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); pointer-events: none; background: var(--ink); color: var(--bg); font-family: var(--font-label); font-size: 13px; padding: 6px 12px; border-radius: 6px; text-align: center; }
   .compare-labels span { font-family: var(--font-label); font-size: 12px; background: var(--ink); color: var(--bg); padding: 2px 8px; border-radius: 4px; }

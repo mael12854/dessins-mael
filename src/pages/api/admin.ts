@@ -8,6 +8,8 @@ export const prerender = false;
 const SPEC_DIR = 'specimens';
 const IMG_KEYS = ['planche', 'espece', 'signature'] as const;
 type ImgKey = (typeof IMG_KEYS)[number];
+const MAX_PAGES = 30; // planche + 29 pages suivantes
+const PAGE_RE = /^page-(\d+)\.(jpg|png|webp)$/;
 const MAX_BLOB = 4_200_000; // base64, ~3,1 Mo d'image (limite d'une requête Vercel : 4,5 Mo)
 
 const json = (status: number, body: unknown) =>
@@ -31,12 +33,16 @@ const extOk = (e: unknown): e is string => typeof e === 'string' && /^(jpg|png|w
 
 interface ImgIn { blob?: string; ext?: string; remove?: boolean }
 
-function buildMarkdown(d: any, img: Record<ImgKey, string | null>): string {
+function buildMarkdown(d: any, img: Record<ImgKey, string | null>, pages: string[] = []): string {
   const L = ['---', `n: ${d.n}`, `series: ${d.series}`, `tech: ${d.tech}`, `title: ${q(d.title)}`];
   if (d.latin) L.push(`latin: ${q(d.latin)}`);
   L.push(`date: ${q(d.date)}`, `lieu: ${q(d.lieu)}`);
   if (img.planche) L.push(`image: ./${img.planche}`);
   if (img.planche && d.alt) L.push(`alt: ${q(d.alt)}`);
+  if (pages.length) {
+    L.push('pages:');
+    for (const p of pages) L.push(`  - image: ./${p}`);
+  }
   if (d.texte) L.push(`texte: ${q(d.texte)}`);
   if (img.signature) L.push(`signature: ./${img.signature}`);
   if (d.pending) L.push('pending: true');
@@ -124,8 +130,35 @@ async function save(body: any) {
     }
   }
 
+  // Pages suivantes (dessin à plusieurs pages) : liste complète, dans l'ordre.
+  //   { keep: i } garde la i-ème page actuelle ; { blob, ext } en ajoute une nouvelle.
+  const curPages = existing
+    .filter((e) => e.type === 'file' && PAGE_RE.test(e.name))
+    .sort((a, b) => Number(a.name.match(PAGE_RE)![1]) - Number(b.name.match(PAGE_RE)![1]));
+  let pages = curPages.map((e) => e.name);
+  if (Array.isArray(body.pages)) {
+    if (body.pages.length > MAX_PAGES - 1) throw new HttpError(400, `${MAX_PAGES} pages au maximum.`);
+    const next: string[] = [];
+    body.pages.forEach((p: any, i: number) => {
+      if (p?.blob !== undefined) {
+        if (!blobOk(p.blob) || !extOk(p.ext)) throw new HttpError(400, 'Page invalide.');
+        const name = `page-${i + 2}.${p.ext}`;
+        changes.push({ path: `${SPEC_DIR}/${folder}/${name}`, blob: p.blob });
+        next.push(name);
+      } else {
+        const cur = Number.isInteger(p?.keep) ? curPages[p.keep] : undefined;
+        if (!cur) throw new HttpError(400, 'Page introuvable : recharge l’admin.');
+        const name = `page-${i + 2}.${cur.name.match(PAGE_RE)![2]}`;
+        if (name !== cur.name) changes.push({ path: `${SPEC_DIR}/${folder}/${name}`, blob: cur.sha });
+        next.push(name);
+      }
+    });
+    for (const e of curPages) if (!next.includes(e.name)) changes.push({ path: e.path, delete: true });
+    pages = next;
+  }
+
   const unique = [...changes];
-  unique.push({ path: `${SPEC_DIR}/${folder}/index.md`, content: buildMarkdown(d, img) });
+  unique.push({ path: `${SPEC_DIR}/${folder}/index.md`, content: buildMarkdown(d, img, pages) });
   const verb = original ? 'modifie' : 'ajoute';
   const sha = await commit(`Admin : ${verb} le spécimen n°${d.n} — ${d.title}`, unique);
   return { ok: true, folder, commit: sha };

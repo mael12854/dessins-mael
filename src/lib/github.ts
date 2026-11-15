@@ -40,7 +40,7 @@ export async function createBlob(base64: string): Promise<string> {
 }
 
 /** Liste les fichiers d'un dossier (un seul niveau). */
-export async function listDir(path: string): Promise<{ name: string; path: string; type: string }[]> {
+export async function listDir(path: string): Promise<{ name: string; path: string; type: string; sha: string }[]> {
   const { branch } = cfg();
   const r = await gh<any[]>(`/contents/${encodeURI(path)}?ref=${branch}`);
   return Array.isArray(r) ? r : [];

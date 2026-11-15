@@ -20,7 +20,11 @@ export interface ProjectRecord {
   /** Spécimen d'origine quand le projet a été ouvert depuis l'admin. */
   folder?: string | null;
   slot?: Slot;
+  /** Dessin à plusieurs pages (PDF, plusieurs scans) : toutes ses pages partagent book.id. */
+  book?: { id: string; index: number };
 }
+
+export interface HandoffPage { base64: string; ext: 'png' | 'jpg' | 'webp'; width: number; height: number }
 
 export interface Handoff {
   projectId: string;
@@ -31,6 +35,8 @@ export interface Handoff {
   slot: Slot;
   folder: string | null;
   createdAt: number;
+  /** Pages suivantes (la page 1 est l'image ci-dessus). */
+  pages?: HandoffPage[];
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -77,6 +83,11 @@ export async function deleteProject(id: string) {
 export const getHandoff = () => run<Handoff | undefined>('handoff', 'readonly', (s) => s.get('pending'));
 export const setHandoff = (h: Handoff) => run('handoff', 'readwrite', (s) => s.put(h, 'pending'));
 export const clearHandoff = () => run('handoff', 'readwrite', (s) => s.delete('pending'));
+
+/** Pages d'un dessin à plusieurs pages, dans l'ordre. */
+export async function bookPages(bookId: string) {
+  return (await listProjects()).filter((p) => p.book?.id === bookId).sort((a, b) => a.book!.index - b.book!.index);
+}
 
 /** Demande au navigateur de ne pas effacer ces données en cas de manque de place. */
 export async function askPersistence() {

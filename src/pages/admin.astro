@@ -14,6 +14,7 @@ const specs = await Promise.all(
     n: d.n, series: d.series, tech: d.tech, title: d.title, latin: d.latin ?? '', date: d.date, lieu: d.lieu,
     alt: d.alt ?? '', texte: d.texte ?? '', pending: d.pending,
     img: { planche: await preview(d.image), signature: await preview(d.signature), espece: await preview(d.fiche?.image) },
+    pages: await Promise.all((d.pages ?? []).map((p) => preview(p.image))),
     fiche: d.fiche
       ? { alt: d.fiche.alt ?? '', habitat: d.fiche.habitat, cri: d.fiche.cri, rush: d.fiche.rush, crush: d.fiche.crush, annotations: d.fiche.annotations }
       : null,
@@ -99,6 +100,13 @@ const specs = await Promise.all(
           <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir le scan</label>
           <button class="btn ghost" type="button" data-remove hidden>Enlever l’image</button>
           <a class="btn ghost" data-studio-link hidden>Retoucher dans le Studio</a>
+        </div>
+        <div class="pages-field">
+          <span class="field-label">Pages suivantes <em>(dessin à plusieurs pages : la planche ci-dessus est la page 1)</em></span>
+          <ol class="pages-list" data-pages-list></ol>
+          <div class="row">
+            <label class="btn ghost file"><input type="file" accept="image/*" multiple hidden data-pages-add /> + Ajouter des pages</label>
+          </div>
         </div>
         <label class="field"><span class="field-label">Texte affiché sous la planche <em>(facultatif)</em></span><textarea name="texte" rows="5" maxlength="4000" placeholder="Quelques mots sur ce spécimen…"></textarea></label>
         <label class="field"><span class="field-label">Description de l’image pour les personnes malvoyantes <em>(facultatif, non affichée)</em></span><textarea name="alt" rows="2" maxlength="400" placeholder="Un homme endormi contre la vitre…"></textarea></label>
@@ -206,6 +214,14 @@ const specs = await Promise.all(
   .series-row .meta { flex: 1; }
   .check.small { min-height: 32px; font-size: 15px; }
   .admin-del[disabled] { opacity: .4; text-decoration: none; cursor: not-allowed; }
+  .pages-field { display: flex; flex-direction: column; gap: 8px; }
+  .pages-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .pages-list:empty { display: none; }
+  .page-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .page-row img { width: 56px; aspect-ratio: 1 / 1.414; object-fit: contain; background: var(--sheet); }
+  .page-row .meta { flex: 1; min-width: 80px; }
+  .page-row .btn { min-width: 44px; padding: 6px 10px; }
+  @media (prefers-color-scheme: dark) { .page-row img { background: transparent; filter: invert(1) hue-rotate(180deg); mix-blend-mode: screen; } }
   .admin-item .badge { font-family: var(--font-label); font-size: 11px; color: var(--red); }
 </style>
 
@@ -216,7 +232,7 @@ const specs = await Promise.all(
   type Annot = { text: string; x: number; y: number };
   type Spec = {
     folder: string; n: number; series: string; tech: string; title: string; latin: string; date: string; lieu: string;
-    alt: string; texte: string; pending: boolean; img: Img;
+    alt: string; texte: string; pending: boolean; img: Img; pages: (string | null)[];
     fiche: { alt: string; habitat: string; cri: string; rush: string; crush: string; annotations: Annot[] } | null;
     _status?: string;
   };
@@ -272,7 +288,13 @@ const specs = await Promise.all(
     removeImg[h.slot] = false;
     if (h.slot === 'espece') { F('hasFiche').checked = true; sync(); }
     renderImg(h.slot);
-    setMsg($('[data-form-msg]'), `Image venant du Studio (${h.width} × ${h.height} px, ${h.ext.toUpperCase()}). Vérifie les informations puis « Enregistrer » pour publier.`, true);
+    if (h.pages?.length) {
+      // Dessin à pages : les pages du Studio remplacent les pages suivantes du spécimen.
+      pageList = h.pages.map((p) => ({ base64: p.base64, ext: p.ext, url: `data:${p.ext === 'png' ? 'image/png' : p.ext === 'webp' ? 'image/webp' : 'image/jpeg'};base64,${p.base64}` }));
+      renderPages();
+    }
+    const n = 1 + (h.pages?.length ?? 0);
+    setMsg($('[data-form-msg]'), `${n > 1 ? `Dessin de ${n} pages` : 'Image'} venant du Studio (page 1 : ${h.width} × ${h.height} px, ${h.ext.toUpperCase()}). Vérifie les informations puis « Enregistrer » pour publier.`, true);
     history.replaceState(null, '', location.pathname);
   }
   function logout() {
@@ -304,7 +326,7 @@ const specs = await Promise.all(
       const num = document.createElement('span'); num.className = 'badge'; num.textContent = `N° ${pad(s.n)}${s._status ? ' · ' + s._status : ''}`;
       const title = document.createElement('span'); title.className = 'hand card-title'; title.textContent = s.title;
       const meta = document.createElement('span'); meta.className = 'meta';
-      meta.textContent = s.pending ? 'en cours d’observation' : `obs. le ${s.date}${s.img.planche ? '' : ' · sans image'}`;
+      meta.textContent = s.pending ? 'en cours d’observation' : `obs. le ${s.date}${s.img.planche ? '' : ' · sans image'}${s.pages?.length ? ` · ${s.pages.length + 1} pages` : ''}`;
       t.append(num, title, meta); b.append(thumb, t);
       b.addEventListener('click', () => openForm(s));
       const del = document.createElement('button'); del.type = 'button'; del.className = 'admin-del';
@@ -322,6 +344,33 @@ const specs = await Promise.all(
   let removeImg: Partial<Record<ImgKey, boolean>> = {};
   let annots: Annot[] = [];
   let placing = -1;
+  // Pages suivantes : { keep: i } = i-ème page publiée, sinon nouvelle image.
+  type PageItem = { keep: number; url: string | null } | { base64: string; ext: string; url: string };
+  let pageList: PageItem[] = [];
+  function renderPages() {
+    const ol = $('[data-pages-list]'); ol.innerHTML = '';
+    pageList.forEach((p, i) => {
+      const li = document.createElement('li'); li.className = 'page-row';
+      const img = document.createElement('img'); img.alt = ''; if (p.url) img.src = p.url;
+      const t = document.createElement('span'); t.className = 'meta'; t.textContent = `Page ${i + 2}${'base64' in p ? ' · nouvelle' : ''}`;
+      const mk = (label: string, aria: string, fn: () => void, disabled = false) => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ghost'; b.textContent = label; b.ariaLabel = aria;
+        b.disabled = disabled; b.addEventListener('click', fn); return b;
+      };
+      li.append(img, t,
+        mk('↑', `Monter la page ${i + 2}`, () => { [pageList[i - 1], pageList[i]] = [pageList[i], pageList[i - 1]]; renderPages(); }, i === 0),
+        mk('↓', `Descendre la page ${i + 2}`, () => { [pageList[i + 1], pageList[i]] = [pageList[i], pageList[i + 1]]; renderPages(); }, i === pageList.length - 1),
+        mk('retirer', `Retirer la page ${i + 2}`, () => { pageList.splice(i, 1); renderPages(); }));
+      ol.append(li);
+    });
+  }
+  $<HTMLInputElement>('[data-pages-add]').addEventListener('change', async (e) => {
+    const input = e.target as HTMLInputElement;
+    const files = [...(input.files ?? [])]; input.value = '';
+    try { for (const f of files) pageList.push(await shrink(f, 'planche')); }
+    catch { setMsg($('[data-form-msg]'), 'Impossible de lire une des images.'); }
+    renderPages();
+  });
   const F = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
   const toIso = (d: string) => (/^\d{2}\.\d{2}\.\d{4}$/.test(d) ? d.split('.').reverse().join('-') : '');
   const fromIso = (d: string) => (d ? d.split('-').reverse().join('.') : '');
@@ -347,6 +396,8 @@ const specs = await Promise.all(
     for (const k of ['habitat', 'cri', 'rush', 'crush'] as const) F(k).value = s?.fiche?.[k] ?? '';
     annots = s?.fiche?.annotations.map((a) => ({ ...a })) ?? [];
     for (const k of IMG_KEYS) renderImg(k);
+    pageList = (s?.pages ?? []).map((url, i) => ({ keep: i, url }));
+    renderPages();
     $('[data-delete]').hidden = !s;
     sync(); renderAnnots(); show('form');
   }
@@ -479,10 +530,19 @@ const specs = await Promise.all(
           images[k] = { blob: r.sha, ext: newImg[k]!.ext };
         } else if (removeImg[k]) images[k] = { remove: true };
       }
+      const pages: object[] = [];
+      for (let i = 0; i < pageList.length; i++) {
+        const p = pageList[i];
+        if ('base64' in p) {
+          setMsg(msg, `Envoi de la page ${i + 2}…`, true);
+          const r = await api({ action: 'blob', base64: p.base64 });
+          pages.push({ blob: r.sha, ext: p.ext });
+        } else pages.push({ keep: p.keep });
+      }
       setMsg(msg, 'Enregistrement…', true);
-      const r = await api({ action: 'save', original: editing?.folder ?? null, data, images });
+      const r = await api({ action: 'save', original: editing?.folder ?? null, data, images, pages });
       const img: Img = { planche: currentImg('planche'), signature: currentImg('signature'), espece: hasFiche ? currentImg('espece') : null };
-      const saved: Spec = { ...(data as any), folder: r.folder, img, latin: data.latin, fiche: data.fiche, _status: 'publication en cours' };
+      const saved: Spec = { ...(data as any), folder: r.folder, img, pages: pageList.map((p) => p.url), latin: data.latin, fiche: data.fiche, _status: 'publication en cours' };
       specs = specs.filter((s) => s.folder !== r.folder).concat(saved);
       flash(`Spécimen n°${data.n} enregistré. Il sera en ligne d’ici une minute environ.`);
     } catch (err) {

@@ -5,11 +5,12 @@ import { Panel } from './panel';
 import { FONTS, newDoc, uid, type Doc } from './model';
 import { cleanImageData } from '../lib/clean-paper';
 import {
-  askPersistence, deleteProject, getOriginal, getProject, listProjects, putOriginal, putProject, setHandoff,
-  type ProjectRecord, type Slot,
+  askPersistence, bookPages, deleteProject, getOriginal, getProject, listProjects, putOriginal, putProject, setHandoff,
+  type HandoffPage, type ProjectRecord, type Slot,
 } from '../lib/studio-db';
+import { isPdf, MAX_PAGES, pdfToImages } from './pdf';
 
-type SpecRef = { folder: string; n: number; title: string; fiche: boolean; orig: { planche: string | null; espece: string | null } };
+type SpecRef = { folder: string; n: number; title: string; fiche: boolean; orig: { planche: string | null; espece: string | null; pages: string[] } };
 
 const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 const specs: SpecRef[] = JSON.parse($('#studio-specs').textContent || '[]');
@@ -168,7 +169,12 @@ async function saveNow() {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && current) saveNow(); });
 
 const nameInput = $<HTMLInputElement>('[data-name]');
-nameInput.addEventListener('change', () => { if (current) { current.name = nameInput.value.trim() || 'Sans titre'; saveNow(); } });
+nameInput.addEventListener('change', async () => {
+  if (!current) return;
+  current.name = nameInput.value.trim() || 'Sans titre';
+  await saveNow();
+  if (current.book) for (const p of await bookPages(current.book.id)) if (p.id !== current.id) { p.name = current.name; await putProject(p); }
+});
 
 // ————— Ouverture / création —————
 async function decode(blob: Blob, w?: number, h?: number) {
@@ -232,6 +238,7 @@ async function openProject(rec: ProjectRecord) {
     saveState.textContent = 'Brouillon enregistré ✓';
     saveState.dataset.state = 'ok';
     history.replaceState(null, '', `?projet=${rec.id}`);
+    await renderPageBar();
   } catch (err) {
     alert((err as Error).message);
     goHome();
@@ -254,6 +261,113 @@ async function createFromBlob(blob: Blob, name: string, folder: string | null = 
   } finally { setBusy(null); }
 }
 
+/** Taille d'édition d'une image (réduite au-delà de la limite des canevas). */
+async function measure(blob: Blob) {
+  const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' } as ImageBitmapOptions);
+  const srcW = bmp.width, srcH = bmp.height;
+  bmp.close?.();
+  const k = srcW * srcH > MAX_PIXELS ? Math.sqrt(MAX_PIXELS / (srcW * srcH)) : 1;
+  return { W: Math.floor(srcW * k), H: Math.floor(srcH * k) };
+}
+
+/** Dessin à plusieurs pages : un brouillon par page, reliés par book.id ; ouvre la page 1 (ou `open`). */
+async function createBook(blobs: Blob[], name: string, folder: string | null = null, bookId = uid(), firstIndex = 0, open = 0) {
+  if (firstIndex + blobs.length > MAX_PAGES) throw new Error(`${MAX_PAGES} pages au maximum par dessin.`);
+  const made: ProjectRecord[] = [];
+  for (let i = 0; i < blobs.length; i++) {
+    setBusy(`Préparation de la page ${firstIndex + i + 1}…`);
+    await nextFrame();
+    const { W, H } = await measure(blobs[i]);
+    const now = Date.now();
+    const rec: ProjectRecord = {
+      id: uid(), name, createdAt: now, updatedAt: now, width: W, height: H, doc: newDoc(W, H), folder, slot: 'planche',
+      book: { id: bookId, index: firstIndex + i },
+    };
+    await putOriginal(rec.id, blobs[i]);
+    await putProject(rec);
+    made.push(rec);
+  }
+  askPersistence();
+  await openProject(made[open] ?? made[0]);
+}
+
+/** Import : une image → un dessin ; un PDF ou plusieurs images → un dessin à pages. */
+async function importFiles(files: File[]) {
+  if (!files.length) return;
+  try {
+    const pdfs = files.filter(isPdf);
+    if (pdfs.length > 1 || (pdfs.length && files.length > 1)) throw new Error('Importe un seul PDF à la fois (ou seulement des images).');
+    let blobs: Blob[] = files;
+    if (pdfs.length) {
+      setBusy('Lecture du PDF…');
+      blobs = await pdfToImages(pdfs[0], (i, n) => setBusy(`Lecture du PDF : page ${i} sur ${n}…`));
+      if (!blobs.length) throw new Error('Ce PDF n’a aucune page.');
+    } else if (files.some((f) => f.type && !/^image\//.test(f.type))) {
+      throw new Error('Choisis des images ou un PDF.');
+    }
+    const name = files.length === 1 ? files[0].name.replace(/\.[^.]+$/, '') || 'Sans titre' : `Dessin à ${files.length} pages`;
+    if (blobs.length === 1) await createFromBlob(blobs[0], name);
+    else await createBook(blobs, name);
+  } catch (err) { alert((err as Error).message || 'Impossible de lire ce fichier.'); }
+  finally { setBusy(null); }
+}
+
+// ————— Pages d'un dessin —————
+const pageBar = $('[data-pagebar]');
+const pageSel = $<HTMLSelectElement>('[data-page-select]');
+let pages: ProjectRecord[] = [];
+async function renderPageBar() {
+  pages = current?.book ? await bookPages(current.book.id) : [];
+  pageBar.hidden = !current;
+  const i = pages.findIndex((p) => p.id === current?.id);
+  pageSel.replaceChildren(...pages.map((p, k) => new Option(`Page ${k + 1} / ${pages.length}`, p.id)));
+  if (!pages.length) pageSel.append(new Option('Page unique', ''));
+  pageSel.value = current?.id && pages.length ? current.id : '';
+  pageSel.disabled = pages.length < 2;
+  $<HTMLButtonElement>('[data-page-prev]').disabled = i <= 0;
+  $<HTMLButtonElement>('[data-page-next]').disabled = i < 0 || i >= pages.length - 1;
+  $<HTMLButtonElement>('[data-page-remove]').hidden = pages.length < 2;
+}
+async function goToPage(id: string) {
+  if (!current || id === current.id) return;
+  await saveNow();
+  const rec = await getProject(id);
+  if (rec) await openProject(rec);
+}
+pageSel.addEventListener('change', () => goToPage(pageSel.value));
+$('[data-page-prev]').addEventListener('click', () => { const i = pages.findIndex((p) => p.id === current?.id); if (i > 0) goToPage(pages[i - 1].id); });
+$('[data-page-next]').addEventListener('click', () => { const i = pages.findIndex((p) => p.id === current?.id); if (i >= 0 && i < pages.length - 1) goToPage(pages[i + 1].id); });
+$<HTMLInputElement>('[data-page-add]').addEventListener('change', async (e) => {
+  const input = e.target as HTMLInputElement;
+  const files = [...(input.files ?? [])];
+  input.value = '';
+  if (!current || !files.length) return;
+  try {
+    await saveNow();
+    let blobs: Blob[] = files;
+    if (files.some(isPdf)) {
+      if (files.length > 1) throw new Error('Ajoute un seul PDF à la fois.');
+      blobs = await pdfToImages(files[0], (i, n) => setBusy(`Lecture du PDF : page ${i} sur ${n}…`));
+    }
+    // Un dessin d'une seule page devient un dessin à pages.
+    if (!current.book) { current.book = { id: uid(), index: 0 }; await putProject(current); }
+    const all = await bookPages(current.book.id);
+    await createBook(blobs, current.name, current.folder ?? null, current.book.id, all.length, 0);
+  } catch (err) { alert((err as Error).message); }
+  finally { setBusy(null); }
+});
+$('[data-page-remove]').addEventListener('click', async () => {
+  if (!current?.book || pages.length < 2) return;
+  const i = pages.findIndex((p) => p.id === current!.id);
+  if (!confirm(`Retirer la page ${i + 1} de ce dessin ? Elle sera supprimée de cet appareil.`)) return;
+  const gone = current;
+  current = null;
+  await deleteProject(gone.id);
+  const rest = pages.filter((p) => p.id !== gone.id);
+  for (let k = 0; k < rest.length; k++) { rest[k].book = { id: gone.book!.id, index: k }; await putProject(rest[k]); }
+  await openProject(rest[Math.min(i, rest.length - 1)]);
+});
+
 // Feuille blanche : un « original » blanc, puis on dessine au stylo.
 const SHEETS: Record<string, [number, number, string]> = {
   portrait: [2480, 3508, 'A4 portrait'], paysage: [3508, 2480, 'A4 paysage'], carre: [2480, 2480, 'Carré'],
@@ -274,22 +388,16 @@ document.querySelectorAll<HTMLButtonElement>('[data-blank]').forEach((b) => b.ad
 
 $<HTMLInputElement>('[data-import]').addEventListener('change', async (e) => {
   const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
+  const files = [...(input.files ?? [])];
   input.value = '';
-  if (!file) return;
-  try { await createFromBlob(file, file.name.replace(/\.[^.]+$/, '') || 'Sans titre'); }
-  catch (err) { alert((err as Error).message || 'Impossible de lire cette image.'); }
+  await importFiles(files);
 });
 const drop = $('[data-drop]');
 drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
 drop.addEventListener('dragleave', () => drop.classList.remove('over'));
 drop.addEventListener('drop', async (e) => {
   e.preventDefault(); drop.classList.remove('over');
-  const file = e.dataTransfer?.files?.[0];
-  if (file) {
-    try { await createFromBlob(file, file.name.replace(/\.[^.]+$/, '') || 'Sans titre'); }
-    catch (err) { alert((err as Error).message || 'Impossible de lire cette image.'); }
-  }
+  await importFiles([...(e.dataTransfer?.files ?? [])]);
 });
 
 // ————— Écran des brouillons —————
@@ -299,9 +407,16 @@ async function renderHome() {
   let projects: ProjectRecord[] = [];
   try { projects = await listProjects(); }
   catch { list.append(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'Le stockage local du navigateur est indisponible (navigation privée ?). Les brouillons ne pourront pas être gardés.' })); }
-  $('[data-no-projects]').hidden = projects.length > 0;
   const fmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
-  for (const p of projects) {
+  // Un dessin à plusieurs pages n'apparaît qu'une fois (sa page 1), avec le nombre de pages.
+  const books = new Map<string, ProjectRecord[]>();
+  for (const p of projects) if (p.book) books.set(p.book.id, [...(books.get(p.book.id) ?? []), p]);
+  for (const list of books.values()) list.sort((a, b) => a.book!.index - b.book!.index);
+  const shown = projects.filter((p) => !p.book || books.get(p.book.id)![0] === p);
+  $('[data-no-projects]').hidden = shown.length > 0;
+  for (const p of shown) {
+    const group = p.book ? books.get(p.book.id)! : [p];
+    const last = Math.max(...group.map((x) => x.updatedAt));
     const li = document.createElement('li');
     li.className = 'proj';
     const open = document.createElement('button');
@@ -313,15 +428,16 @@ async function renderHome() {
     const name = document.createElement('strong'); name.textContent = p.name;
     const meta = document.createElement('span'); meta.className = 'meta';
     const target = p.folder ? specs.find((s) => s.folder === p.folder) : null;
-    meta.textContent = `${fmt.format(p.updatedAt)} · ${p.width} × ${p.height}${target ? ` · spécimen n°${target.n}` : ''}`;
+    meta.textContent = `${fmt.format(last)} · ${group.length > 1 ? `${group.length} pages` : `${p.width} × ${p.height}`}${target ? ` · spécimen n°${target.n}` : ''}`;
     t.append(name, meta);
     open.append(img, t);
     open.addEventListener('click', () => openProject(p));
     const del = document.createElement('button');
     del.type = 'button'; del.className = 'linkish danger'; del.textContent = 'supprimer';
     del.addEventListener('click', async () => {
-      if (!confirm(`Supprimer le brouillon « ${p.name} » de cet appareil ?`)) return;
-      await deleteProject(p.id); renderHome();
+      if (!confirm(group.length > 1 ? `Supprimer le dessin « ${p.name} » et ses ${group.length} pages de cet appareil ?` : `Supprimer le brouillon « ${p.name} » de cet appareil ?`)) return;
+      for (const x of group) await deleteProject(x.id);
+      renderHome();
     });
     li.append(open, del);
     list.append(li);
@@ -391,6 +507,31 @@ const dlg = $<HTMLDialogElement>('[data-publish-dialog]');
 const destSel = $<HTMLSelectElement>('[data-dest]');
 const slotSel = $<HTMLSelectElement>('[data-slot]');
 let prepared: Awaited<ReturnType<typeof encodeForUpload>> | null = null;
+let preparedPages: Awaited<ReturnType<typeof encodeForUpload>>[] = []; // pages 2, 3… d'un dessin à pages
+
+// Éditeur invisible pour rendre les autres pages sans quitter celle qu'on retouche.
+let renderer: Editor | null = null;
+function pageRenderer() {
+  if (!renderer) {
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:-10000px;top:0;width:200px;height:200px;overflow:hidden;';
+    box.setAttribute('aria-hidden', 'true');
+    document.body.append(box);
+    const noop = () => {};
+    renderer = new Editor(box as HTMLDivElement, { change: noop, select: noop, tool: noop, zoom: noop, history: noop, editText: noop });
+  }
+  return renderer;
+}
+async function renderPage(rec: ProjectRecord) {
+  const blob = await getOriginal(rec.id);
+  if (!blob) throw new Error(`Le fichier original de la page « ${rec.name} » est introuvable sur cet appareil.`);
+  const { orig, clean, paper } = await decode(blob, rec.width, rec.height);
+  const r = pageRenderer();
+  r.load(rec.doc as Doc, orig, clean, paper);
+  r.refreshFonts();
+  await loadFonts();
+  return r.renderFinal();
+}
 let previewUrl = '';
 
 for (const s of specs) destSel.append(new Option(`Spécimen n°${s.n} — ${s.title}`, s.folder));
@@ -401,14 +542,25 @@ $('[data-publish]').addEventListener('click', async () => {
   setBusy('Préparation de l’image finale…');
   await nextFrame();
   try {
-    const c = await finalCanvas();
-    prepared = await encodeForUpload(c);
+    // Dessin à pages : on publie toutes les pages, dans l'ordre (la page 1 devient la planche).
+    const all = current.book ? await bookPages(current.book.id) : [current];
+    const results = [];
+    for (let i = 0; i < all.length; i++) {
+      if (all.length > 1) { setBusy(`Préparation de la page ${i + 1} sur ${all.length}…`); await nextFrame(); }
+      const c = all[i].id === current.id ? await finalCanvas() : await renderPage(all[i]);
+      results.push(await encodeForUpload(c));
+    }
+    prepared = results[0];
+    preparedPages = results.slice(1);
     URL.revokeObjectURL(previewUrl);
     previewUrl = URL.createObjectURL(prepared.blob);
     $<HTMLImageElement>('[data-preview]').src = previewUrl;
-    $('[data-preview-info]').textContent = prepared.note;
+    $('[data-preview-info]').textContent = preparedPages.length
+      ? `Dessin de ${results.length} pages : toutes seront publiées, dans l’ordre (aperçu de la page 1). Page 1 : ${prepared.note}`
+      : prepared.note;
+    slotSel.disabled = preparedPages.length > 0; // un dessin à pages se publie comme planche
     destSel.value = current.folder && specs.some((s) => s.folder === current!.folder) ? current.folder : '';
-    slotSel.value = current.slot ?? 'planche';
+    slotSel.value = preparedPages.length ? 'planche' : current.slot ?? 'planche';
     dlg.showModal();
   } catch (err) { alert((err as Error).message); }
   finally { setBusy(null); }
@@ -423,10 +575,14 @@ $('[data-send]').addEventListener('click', async () => {
     current.folder = destSel.value || null;
     current.slot = slotSel.value as Slot;
     await saveNow();
+    if (current.book) for (const p of await bookPages(current.book.id)) if (p.id !== current.id) { p.folder = current.folder; await putProject(p); }
     await setHandoff({
       projectId: current.id, base64: await blobToBase64(prepared.blob), ext: prepared.ext,
       width: prepared.canvas.width, height: prepared.canvas.height,
       slot: current.slot, folder: current.folder, createdAt: Date.now(),
+      pages: await Promise.all(preparedPages.map(async (p): Promise<HandoffPage> => ({
+        base64: await blobToBase64(p.blob), ext: p.ext, width: p.canvas.width, height: p.canvas.height,
+      }))),
     });
     location.href = '/admin?studio=1';
   } catch (err) { alert((err as Error).message); btn.disabled = false; }
@@ -450,9 +606,16 @@ async function start() {
     if (spec && url) {
       try {
         setBusy('Chargement du dessin publié…');
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Image introuvable (${res.status}).`);
-        await createFromBlob(await res.blob(), `Spécimen n°${spec.n} — ${spec.title}`, spec.folder, slot);
+        const urls = slot === 'planche' ? [url, ...spec.orig.pages] : [url];
+        const blobs = [];
+        for (const u of urls) {
+          const res = await fetch(u);
+          if (!res.ok) throw new Error(`Image introuvable (${res.status}).`);
+          blobs.push(await res.blob());
+        }
+        const name = `Spécimen n°${spec.n} — ${spec.title}`;
+        if (blobs.length > 1) await createBook(blobs, name, spec.folder);
+        else await createFromBlob(blobs[0], name, spec.folder, slot);
       } catch (err) { alert((err as Error).message); }
       finally { setBusy(null); }
     }
