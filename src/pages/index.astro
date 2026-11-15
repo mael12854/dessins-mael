@@ -33,7 +33,7 @@ const noImages = !byNew.some((s) => s.image && !s.pending);
         <PendingTag n={latest.n} note />
       ) : (
         <a href={plancheUrl(latest.n)} style="display:flex;flex-direction:column;">
-          <Sheet image={latest.image} alt={altFor(latest)} eager />
+          <Sheet image={latest.image} alt={altFor(latest)} ratio="auto" eager />
           <span class="caption pad" style="padding-top:8px;">planche n°{pad(latest.n)} — {TECH[latest.tech]}</span>
         </a>
       )}
