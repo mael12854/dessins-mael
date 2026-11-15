@@ -6,7 +6,6 @@ title: "Week-end de dépannage"
 date: "15.11.2026"
 lieu: "Chez les grands-parents"
 image: ./planche.png
-alt: "Page 1 : Journée (très) banale\nDessin en noir et blanc au feutre. Titre : « Journée (très) banale d'un technicien en mission chez les grands-parents ». À gauche, une grosse créature couverte de petits ronds, qui tient une tasse de café, demande « Qui est là ? ». Un panneau hachuré indique « Ici depuis 2014 ». À droite, un petit personnage aux cheveux bouclés, l'auteur, pointe un outil vers elle en"
 pages:
   - image: ./page-2.png
   - image: ./page-3.png
