@@ -8,4 +8,9 @@ lieu: "À la maison"
 image: ./planche.png
 texte: "Mon petit frère, recevant ses feutres de dessin 🤩\n\nL'auteur 🧑🏼"
 signature: ./signature.png
+fiche:
+  habitat: "Maison"
+  cri: "AAAAAAAAAAAAAAH!"
+  rush: "Court partout"
+  crush: "Ne répond plus"
 ---
