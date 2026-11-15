@@ -31,17 +31,32 @@ const folderOk = (f: unknown): f is string => typeof f === 'string' && /^[a-z0-9
 const blobOk = (b: unknown): b is string => typeof b === 'string' && /^[0-9a-f]{40}$/.test(b);
 const extOk = (e: unknown): e is string => typeof e === 'string' && /^(jpg|png|webp)$/.test(e);
 
+/** Lien Flickr facultatif : « flickr.com/photos/… » accepté sans https ; seuls flickr.com et flic.kr. */
+function flickrUrl(v: unknown): string {
+  const raw = typeof v === 'string' ? v.trim() : '';
+  if (!raw) return '';
+  let u: URL;
+  try { u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`); } catch { throw new HttpError(400, `Lien Flickr invalide : ${raw.slice(0, 80)}`); }
+  if (!/^((www|m)\.)?flickr\.com$|^flic\.kr$/i.test(u.hostname) || raw.length > 300) throw new HttpError(400, `Ce n’est pas un lien Flickr : ${raw.slice(0, 80)}`);
+  u.protocol = 'https:';
+  return u.toString();
+}
+
 interface ImgIn { blob?: string; ext?: string; remove?: boolean }
 
-function buildMarkdown(d: any, img: Record<ImgKey, string | null>, pages: string[] = []): string {
+function buildMarkdown(d: any, img: Record<ImgKey, string | null>, pages: { name: string; flickr: string }[] = []): string {
   const L = ['---', `n: ${d.n}`, `series: ${d.series}`, `tech: ${d.tech}`, `title: ${q(d.title)}`];
   if (d.latin) L.push(`latin: ${q(d.latin)}`);
   L.push(`date: ${q(d.date)}`, `lieu: ${q(d.lieu)}`);
   if (img.planche) L.push(`image: ./${img.planche}`);
   if (img.planche && d.alt) L.push(`alt: ${q(d.alt)}`);
+  if (img.planche && d.flickr) L.push(`flickr: ${q(d.flickr)}`);
   if (pages.length) {
     L.push('pages:');
-    for (const p of pages) L.push(`  - image: ./${p}`);
+    for (const p of pages) {
+      L.push(`  - image: ./${p.name}`);
+      if (p.flickr) L.push(`    flickr: ${q(p.flickr)}`);
+    }
   }
   if (d.texte) L.push(`texte: ${q(d.texte)}`);
   if (img.signature) L.push(`signature: ./${img.signature}`);
@@ -51,6 +66,7 @@ function buildMarkdown(d: any, img: Record<ImgKey, string | null>, pages: string
     L.push('fiche:');
     if (img.espece) L.push(`  image: ./${img.espece}`);
     if (img.espece && f.alt) L.push(`  alt: ${q(f.alt)}`);
+    if (img.espece && f.flickr) L.push(`  flickr: ${q(f.flickr)}`);
     L.push(`  habitat: ${q(f.habitat)}`, `  cri: ${q(f.cri)}`, `  rush: ${q(f.rush)}`, `  crush: ${q(f.crush)}`);
     if (f.annotations.length) {
       L.push('  annotations:');
@@ -72,6 +88,7 @@ function validate(raw: any) {
     lieu: str(raw?.lieu, 120),
     alt: str(raw?.alt, 400),
     texte: str(raw?.texte, 4000),
+    flickr: flickrUrl(raw?.flickr),
     pending: !!raw?.pending,
   };
   if (!d.series) throw new HttpError(400, 'Série invalide.');
@@ -84,6 +101,7 @@ function validate(raw: any) {
     const f = raw.fiche;
     d.fiche = {
       alt: str(f.alt, 400),
+      flickr: flickrUrl(f.flickr),
       habitat: str(f.habitat), cri: str(f.cri), rush: str(f.rush), crush: str(f.crush),
       annotations: (Array.isArray(f.annotations) ? f.annotations : [])
         .slice(0, 4)
@@ -135,25 +153,32 @@ async function save(body: any) {
   const curPages = existing
     .filter((e) => e.type === 'file' && PAGE_RE.test(e.name))
     .sort((a, b) => Number(a.name.match(PAGE_RE)![1]) - Number(b.name.match(PAGE_RE)![1]));
-  let pages = curPages.map((e) => e.name);
+  // Sans liste envoyée, les pages restent telles quelles (leurs liens Flickr sont relus dans index.md).
+  const oldMd = original && !Array.isArray(body.pages) ? (await readText(`${SPEC_DIR}/${folder}/index.md`)) ?? '' : '';
+  const oldFlickr = (name: string) => {
+    const lines = oldMd.split('\n');
+    const k = lines.findIndex((l) => l.trim() === `- image: ./${name}`);
+    return k >= 0 ? lines[k + 1]?.match(/^\s+flickr: "(.+)"$/)?.[1] ?? '' : '';
+  };
+  let pages = curPages.map((e) => ({ name: e.name, flickr: oldFlickr(e.name) }));
   if (Array.isArray(body.pages)) {
     if (body.pages.length > MAX_PAGES - 1) throw new HttpError(400, `${MAX_PAGES} pages au maximum.`);
-    const next: string[] = [];
+    const next: { name: string; flickr: string }[] = [];
     body.pages.forEach((p: any, i: number) => {
       if (p?.blob !== undefined) {
         if (!blobOk(p.blob) || !extOk(p.ext)) throw new HttpError(400, 'Page invalide.');
         const name = `page-${i + 2}.${p.ext}`;
         changes.push({ path: `${SPEC_DIR}/${folder}/${name}`, blob: p.blob });
-        next.push(name);
+        next.push({ name, flickr: flickrUrl(p.flickr) });
       } else {
         const cur = Number.isInteger(p?.keep) ? curPages[p.keep] : undefined;
         if (!cur) throw new HttpError(400, 'Page introuvable : recharge l’admin.');
         const name = `page-${i + 2}.${cur.name.match(PAGE_RE)![2]}`;
         if (name !== cur.name) changes.push({ path: `${SPEC_DIR}/${folder}/${name}`, blob: cur.sha });
-        next.push(name);
+        next.push({ name, flickr: flickrUrl(p.flickr) });
       }
     });
-    for (const e of curPages) if (!next.includes(e.name)) changes.push({ path: e.path, delete: true });
+    for (const e of curPages) if (!next.some((n) => n.name === e.name)) changes.push({ path: e.path, delete: true });
     pages = next;
   }
 

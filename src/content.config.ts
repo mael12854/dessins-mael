@@ -16,8 +16,9 @@ const specimens = defineCollection({
         lieu: z.string(),
         image: image().optional(),
         alt: z.string().optional(),
+        flickr: z.string().url().optional(), // photo Flickr de la planche (« voir en grand »)
         // Dessin à plusieurs pages : pages suivantes (la page 1 est `image`), fichiers page-2, page-3…
-        pages: z.array(z.object({ image: image(), alt: z.string().optional() })).max(29).optional(),
+        pages: z.array(z.object({ image: image(), alt: z.string().optional(), flickr: z.string().url().optional() })).max(29).optional(),
         texte: z.string().max(4000).optional(),
         signature: image().optional(),
         pending: z.boolean().default(false),
@@ -25,6 +26,7 @@ const specimens = defineCollection({
           .object({
             image: image().optional(),
             alt: z.string().optional(),
+            flickr: z.string().url().optional(),
             habitat: z.string(),
             cri: z.string(),
             rush: z.string(),

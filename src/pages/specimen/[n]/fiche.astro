@@ -27,6 +27,7 @@ const rubriques = [
   ['c.', 'Comportement en période de rush', fiche.rush],
   ['d.', 'Comportement en période de crush', fiche.crush],
 ];
+import FlickrLink from '../../../components/FlickrLink.astro';
 ---
 <Base title={`Fiche espèce — ${s.title}`} description={`Fiche espèce : ${s.title}${s.latin ? ` (${s.latin})` : ''}. Habitat : ${fiche.habitat}`}>
   <section class="pad" style="display:flex;flex-direction:column;gap:18px;padding-top:24px;">
@@ -61,6 +62,7 @@ const rubriques = [
         ))}
       </div>
       <figcaption class="caption">dessin de l’espèce — annotations en bleu stylo</figcaption>
+      <FlickrLink href={fiche.flickr} />
     </figure>
 
     <dl class="rubriques">

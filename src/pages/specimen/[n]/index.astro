@@ -1,5 +1,6 @@
 ---
 import Texte from '../../../components/Texte.astro';
+import FlickrLink from '../../../components/FlickrLink.astro';
 import Base from '../../../layouts/Base.astro';
 import Sheet from '../../../components/Sheet.astro';
 import PendingTag from '../../../components/PendingTag.astro';
@@ -46,6 +47,7 @@ const total = 1 + extra.length;
             <span class="signature-slot" aria-hidden="true">signature<br />n°{s.n}</span>
           )}
         </figcaption>
+        {s.flickr && <div class="pad"><FlickrLink href={s.flickr} /></div>}
       </figure>
     )}
 
@@ -53,6 +55,7 @@ const total = 1 + extra.length;
       <figure style="margin:0;display:flex;flex-direction:column;gap:8px;">
         <Sheet image={p.image} alt={p.alt || `${altFor(s)} — page ${i + 2} sur ${total}`} ratio="auto" />
         <figcaption class="pad"><span class="caption">planche n°{pad(s.n)} — page {i + 2} sur {total}</span></figcaption>
+        {p.flickr && <div class="pad"><FlickrLink href={p.flickr} /></div>}
       </figure>
     ))}
 

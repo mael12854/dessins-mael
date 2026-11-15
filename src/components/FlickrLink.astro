@@ -1,0 +1,11 @@
+---
+// Lien « voir en grand » vers la photo Flickr d'une image (facultatif, saisi dans l'admin).
+interface Props { href?: string }
+const { href } = Astro.props;
+---
+{href && (
+  <a href={href} target="_blank" rel="noopener" class="hlink small flickr-link">
+    <span>voir en grand sur Flickr</span>
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5 2h7v7M12 2 3 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+  </a>
+)}
