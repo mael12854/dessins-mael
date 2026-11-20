@@ -15,6 +15,7 @@ Variables d’environnement Vercel nécessaires :
 | --- | --- |
 | `ADMIN_PASSWORD` | code d’accès de `/admin` |
 | `GITHUB_TOKEN` | jeton GitHub *fine-grained*, limité à ce dépôt, permission **Contents : Read and write** |
+| `BLOB_READ_WRITE_TOKEN` | (facultatif, ajoutée par Vercel en reliant un espace Blob **privé** au projet) : envoi des grandes images |
 | `GITHUB_REPO` | facultatif, `mael12854/dessins-mael` par défaut |
 | `GITHUB_BRANCH` | facultatif, `main` par défaut |
 
@@ -32,6 +33,7 @@ Après un changement de variable, redéployer le site (Vercel → Deployments �
 - **Publication** : « Publier… » montre l'aperçu, puis ouvre le formulaire de l'admin avec l'image (nouveau spécimen, ou planche / dessin de fiche d'un spécimen existant). Rien n'est publié avant « Enregistrer ». L'image part en PNG sans perte si elle tient dans la limite d'envoi de Vercel (~3 Mo) ; sinon en JPEG haute qualité, puis réduite si besoin (le message l'indique).
 - Depuis la fiche d'un spécimen dans l'admin, « Retoucher dans le Studio » rouvre le dessin publié.
 - **Dessins à plusieurs pages** : importer un PDF (ou plusieurs images d'un coup) crée un dessin à pages, une page par page du PDF (rendue à 300 ppp, 30 pages au maximum). La barre en haut du dessin passe d'une page à l'autre, ajoute des pages (« + page ») ou en retire. « Publier… » envoie toutes les pages : la page 1 devient la planche, les suivantes `page-2`, `page-3`… du spécimen, affichées à la suite sur le site. Dans l'admin, la rubrique « Pages suivantes » permet aussi d'en ajouter, d'en retirer ou de les réordonner.
+- **Grandes images (Vercel Blob)** : sans espace Blob, chaque image envoyée doit tenir dans ≈ 3 Mo (limite de 4,5 Mo d'une requête Vercel) : JPEG, réduit si besoin. Avec un espace Blob **privé** relié au projet, le navigateur y dépose l'image directement (jusqu'à 40 Mo), le serveur la range dans GitHub puis l'efface de Blob : le Studio publie alors des PNG sans perte en pleine taille, l'admin des scans en 3508 px. Les envois abandonnés sont effacés après un jour. Rien n'est stocké durablement dans Blob : les images publiées restent dans GitHub.
 - **Liens Flickr** : dans l'admin, chaque image (planche, chaque page suivante, dessin de la fiche espèce) a un champ « Lien Flickr » facultatif (`flickr.com/…` ou `flic.kr/…`, avec ou sans `https://`). Sur le site, un lien « voir en grand sur Flickr » apparaît sous l'image.
 
 Raccourcis : V sélection, S stylo, F feutre, T texte, E étiquette, B bulle, R bulle carrée, P pensée, A flèche, Suppr, Ctrl+Z / Ctrl+Maj+Z, Ctrl+D dupliquer, flèches pour déplacer, + / − / 0 / 1 pour le zoom, Entrée pour modifier le texte. Ils sont désactivés pendant la saisie.

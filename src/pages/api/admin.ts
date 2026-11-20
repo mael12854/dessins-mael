@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { commit, createBlob, listDir, readText, HttpError, type Change } from '../../lib/github';
+import { codeOk } from '../../lib/auth';
+import { blobEnabled, cleanOldUploads, takeUpload } from '../../lib/blob-store';
 import seriesData from '../../data/series.json';
 
 export const prerender = false;
@@ -15,12 +16,6 @@ const MAX_BLOB = 4_200_000; // base64, ~3,1 Mo d'image (limite d'une requête Ve
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
-const sha = (s: string) => createHash('sha256').update(s).digest();
-function codeOk(given: string | null) {
-  const expected = process.env.ADMIN_PASSWORD;
-  if (!expected || !given) return false;
-  return timingSafeEqual(sha(given), sha(expected));
-}
 
 const pad = (n: number) => String(n).padStart(3, '0');
 const slug = (s: string) =>
@@ -233,7 +228,13 @@ export const POST: APIRoute = async ({ request }) => {
     if (!body) return json(400, { error: 'Requête invalide.' });
     switch (body.action) {
       case 'login':
-        return json(200, { ok: true, github: !!process.env.GITHUB_TOKEN });
+        cleanOldUploads().catch(() => {}); // ménage des envois abandonnés, sans faire attendre
+        return json(200, { ok: true, github: !!process.env.GITHUB_TOKEN, bigUploads: blobEnabled() });
+      case 'blob-from-store': {
+        // Grande image déposée par le navigateur dans Vercel Blob : on la range dans GitHub.
+        const { base64, ext, size } = await takeUpload(body.url);
+        return json(200, { sha: await createBlob(base64), ext, size });
+      }
       case 'blob': {
         if (typeof body.base64 !== 'string' || body.base64.length > MAX_BLOB || !/^[A-Za-z0-9+/=]+$/.test(body.base64))
           return json(400, { error: 'Image trop lourde ou invalide.' });

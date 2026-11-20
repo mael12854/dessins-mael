@@ -26,12 +26,16 @@ const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeou
 
 // ————— Accès (même code que l'admin) —————
 let code = '';
+let bigUploads = false; // Vercel Blob branché : images publiées en PNG sans perte jusqu'à 40 Mo
+const BIG_LIMIT = 40 * 1024 * 1024; // même valeur que src/lib/send-image.ts
 try { code = sessionStorage.getItem('admin-code') || ''; } catch {}
 
 async function checkCode(c: string) {
   const res = await fetch('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-code': c }, body: JSON.stringify({ action: 'login' }) });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Erreur ${res.status}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
   code = c;
+  bigUploads = !!data.bigUploads;
   try { sessionStorage.setItem('admin-code', c); } catch {}
 }
 
@@ -485,6 +489,7 @@ $('[data-download]').addEventListener('click', async () => {
 /** PNG sans perte si possible ; sinon JPEG haute qualité, puis réduction (limite d'envoi). */
 async function encodeForUpload(c: HTMLCanvasElement) {
   const png = await toBlob(c, 'image/png');
+  if (bigUploads && png.size < BIG_LIMIT) return { blob: png, ext: 'png' as const, canvas: c, note: `PNG sans perte, ${c.width} × ${c.height} px (${mo(png.size)}).` };
   if (png.size * 1.34 < UPLOAD_LIMIT) return { blob: png, ext: 'png' as const, canvas: c, note: `PNG sans perte, ${c.width} × ${c.height} px (${mo(png.size)}).` };
   for (const q of [0.95, 0.92, 0.88]) {
     const jpg = await toBlob(c, 'image/jpeg', q);

@@ -231,6 +231,8 @@ const specs = await Promise.all(
 <script>
   import { cleanCanvas } from '../lib/clean-paper';
   import { clearHandoff, getHandoff, type Handoff } from '../lib/studio-db';
+  import { sendImage, urlToBlob } from '../lib/send-image';
+  let bigUploads = false; // Vercel Blob branché : grandes images acceptées
   type Img = { planche: string | null; signature: string | null; espece: string | null };
   type Annot = { text: string; x: number; y: number };
   type Spec = {
@@ -274,6 +276,7 @@ const specs = await Promise.all(
     const r = await api({ action: 'login' });
     try { sessionStorage.setItem('admin-code', c); } catch {}
     $('[data-nogithub]').hidden = r.github;
+    bigUploads = !!r.bigUploads;
     renderList(); show('list');
     pickStudioImage();
   }
@@ -442,7 +445,8 @@ const specs = await Promise.all(
 
   // Réduit l'image dans le navigateur avant l'envoi (≤ 2400 px, JPEG ; PNG pour la signature).
   async function shrink(file: File, k: ImgKey) {
-    const max = k === 'signature' ? 600 : 2400;
+    // Avec Vercel Blob : qualité impression (3508 px, A4 à 300 ppp) ; sinon réduite pour tenir dans ≈ 3 Mo.
+    const max = k === 'signature' ? 600 : bigUploads ? 3508 : 2400;
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
     const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
     const c = document.createElement('canvas');
@@ -453,7 +457,7 @@ const specs = await Promise.all(
     ctx.drawImage(bmp, 0, 0, c.width, c.height);
     cleanCanvas(ctx, c.width, c.height, png);
     const type = png ? 'image/png' : 'image/jpeg';
-    const url = c.toDataURL(type, 0.88);
+    const url = c.toDataURL(type, bigUploads ? 0.92 : 0.88);
     return { base64: url.split(',')[1], ext: png ? 'png' : 'jpg', url };
   }
   for (const k of IMG_KEYS) {
@@ -536,17 +540,17 @@ const specs = await Promise.all(
       for (const k of IMG_KEYS) {
         if (newImg[k]) {
           setMsg(msg, `Envoi de l’image « ${k} »…`, true);
-          const r = await api({ action: 'blob', base64: newImg[k]!.base64 });
-          images[k] = { blob: r.sha, ext: newImg[k]!.ext };
+          const r = await sendImage(await urlToBlob(newImg[k]!.url), { code, big: bigUploads, name: k, api });
+          images[k] = { blob: r.sha, ext: r.ext };
         } else if (removeImg[k]) images[k] = { remove: true };
       }
       const pages: object[] = [];
       for (let i = 0; i < pageList.length; i++) {
         const p = pageList[i];
         if ('base64' in p) {
-          setMsg(msg, `Envoi de la page ${i + 2}…`, true);
-          const r = await api({ action: 'blob', base64: p.base64 });
-          pages.push({ blob: r.sha, ext: p.ext, flickr: (p.flickr ?? '').trim() });
+          setMsg(msg, `Envoi de la page ${i + 2} sur ${pageList.length + 1}…`, true);
+          const r = await sendImage(await urlToBlob(p.url), { code, big: bigUploads, name: `page-${i + 2}`, api });
+          pages.push({ blob: r.sha, ext: r.ext, flickr: (p.flickr ?? '').trim() });
         } else pages.push({ keep: p.keep, flickr: (p.flickr ?? '').trim() });
       }
       setMsg(msg, 'Enregistrement…', true);
