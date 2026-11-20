@@ -4,8 +4,17 @@
 import { del, get, list } from '@vercel/blob';
 import { HttpError } from './github';
 
-// Deux façons de relier l'espace au projet : clé fixe (BLOB_READ_WRITE_TOKEN) ou identifiants OIDC (BLOB_STORE_ID).
-export const blobEnabled = () => !!(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
+// Deux façons de relier l'espace au projet : clé fixe (BLOB_READ_WRITE_TOKEN) ou identifiants OIDC (BLOB_STORE_ID,
+// réglage par défaut de Vercel). En OIDC, Vercel joint un jeton temporaire à chaque requête (en-tête x-vercel-oidc-token).
+export type BlobMode = 'token' | 'oidc';
+export const blobMode = (): BlobMode | null => (process.env.BLOB_READ_WRITE_TOKEN ? 'token' : process.env.BLOB_STORE_ID ? 'oidc' : null);
+export const blobEnabled = () => blobMode() !== null;
+
+/** Identifiants à passer à la bibliothèque : le jeton OIDC de la requête s'il est là. */
+export function blobAuth(request?: Request): { oidcToken?: string; storeId?: string } {
+  const oidcToken = request?.headers.get('x-vercel-oidc-token') || undefined;
+  return blobMode() === 'oidc' && oidcToken ? { oidcToken, storeId: process.env.BLOB_STORE_ID } : {};
+}
 export const UPLOAD_PREFIX = 'uploads/';
 export const MAX_UPLOAD = 40 * 1024 * 1024; // 40 Mo par image
 
@@ -32,10 +41,10 @@ function sniff(b: Buffer): 'png' | 'jpg' | 'webp' | null {
 }
 
 /** Relit une image déposée dans Blob, puis l'efface. Renvoie son contenu en base64. */
-export async function takeUpload(rawUrl: unknown) {
+export async function takeUpload(rawUrl: unknown, auth: ReturnType<typeof blobAuth> = {}) {
   if (!blobEnabled()) throw new HttpError(501, 'Vercel Blob n’est pas branché sur ce site.');
   const url = checkUrl(rawUrl);
-  const r = await get(url.toString(), { access: 'private', useCache: false });
+  const r = await get(url.toString(), { access: 'private', useCache: false, ...auth });
   if (!r || r.statusCode !== 200 || !r.stream) throw new HttpError(404, 'Image introuvable dans l’espace d’envoi.');
   const chunks: Buffer[] = []; let size = 0;
   const reader = r.stream.getReader();
@@ -48,16 +57,16 @@ export async function takeUpload(rawUrl: unknown) {
   }
   const buf = Buffer.concat(chunks);
   const ext = sniff(buf);
-  await del(url.toString()).catch(() => {}); // l'image va dans GitHub : plus besoin de la garder ici
+  await del(url.toString(), auth).catch(() => {}); // l'image va dans GitHub : plus besoin de la garder ici
   if (!ext) throw new HttpError(400, 'Ce fichier n’est pas une image PNG, JPEG ou WebP.');
   return { base64: buf.toString('base64'), ext, size };
 }
 
 /** Efface les envois abandonnés (déposés il y a plus d'un jour). Sans effet si Blob n'est pas branché. */
-export async function cleanOldUploads() {
+export async function cleanOldUploads(auth: ReturnType<typeof blobAuth> = {}) {
   if (!blobEnabled()) return 0;
-  const { blobs } = await list({ prefix: UPLOAD_PREFIX, limit: 100 });
+  const { blobs } = await list({ prefix: UPLOAD_PREFIX, limit: 100, ...auth });
   const old = blobs.filter((b) => Date.now() - new Date(b.uploadedAt).getTime() > 24 * 3600 * 1000).map((b) => b.url);
-  if (old.length) await del(old);
+  if (old.length) await del(old, auth);
   return old.length;
 }

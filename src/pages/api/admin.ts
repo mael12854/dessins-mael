@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { commit, createBlob, listDir, readText, HttpError, type Change } from '../../lib/github';
 import { codeOk } from '../../lib/auth';
-import { blobEnabled, cleanOldUploads, takeUpload } from '../../lib/blob-store';
+import { blobAuth, blobEnabled, blobMode, cleanOldUploads, takeUpload } from '../../lib/blob-store';
 import seriesData from '../../data/series.json';
 
 export const prerender = false;
@@ -228,11 +228,11 @@ export const POST: APIRoute = async ({ request }) => {
     if (!body) return json(400, { error: 'Requête invalide.' });
     switch (body.action) {
       case 'login':
-        cleanOldUploads().catch(() => {}); // ménage des envois abandonnés, sans faire attendre
-        return json(200, { ok: true, github: !!process.env.GITHUB_TOKEN, bigUploads: blobEnabled() });
+        cleanOldUploads(blobAuth(request)).catch(() => {}); // ménage des envois abandonnés, sans faire attendre
+        return json(200, { ok: true, github: !!process.env.GITHUB_TOKEN, bigUploads: blobEnabled(), blobMode: blobMode() });
       case 'blob-from-store': {
         // Grande image déposée par le navigateur dans Vercel Blob : on la range dans GitHub.
-        const { base64, ext, size } = await takeUpload(body.url);
+        const { base64, ext, size } = await takeUpload(body.url, blobAuth(request));
         return json(200, { sha: await createBlob(base64), ext, size });
       }
       case 'blob': {

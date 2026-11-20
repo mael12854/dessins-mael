@@ -233,6 +233,7 @@ const specs = await Promise.all(
   import { clearHandoff, getHandoff, type Handoff } from '../lib/studio-db';
   import { sendImage, urlToBlob } from '../lib/send-image';
   let bigUploads = false; // Vercel Blob branché : grandes images acceptées
+  let blobMode: 'token' | 'oidc' | null = null;
   type Img = { planche: string | null; signature: string | null; espece: string | null };
   type Annot = { text: string; x: number; y: number };
   type Spec = {
@@ -277,6 +278,7 @@ const specs = await Promise.all(
     try { sessionStorage.setItem('admin-code', c); } catch {}
     $('[data-nogithub]').hidden = r.github;
     bigUploads = !!r.bigUploads;
+    blobMode = r.blobMode ?? null;
     renderList(); show('list');
     pickStudioImage();
   }
@@ -540,7 +542,7 @@ const specs = await Promise.all(
       for (const k of IMG_KEYS) {
         if (newImg[k]) {
           setMsg(msg, `Envoi de l’image « ${k} »…`, true);
-          const r = await sendImage(await urlToBlob(newImg[k]!.url), { code, big: bigUploads, name: k, api });
+          const r = await sendImage(await urlToBlob(newImg[k]!.url), { code, big: bigUploads, mode: blobMode, name: k, api });
           images[k] = { blob: r.sha, ext: r.ext };
         } else if (removeImg[k]) images[k] = { remove: true };
       }
@@ -549,7 +551,7 @@ const specs = await Promise.all(
         const p = pageList[i];
         if ('base64' in p) {
           setMsg(msg, `Envoi de la page ${i + 2} sur ${pageList.length + 1}…`, true);
-          const r = await sendImage(await urlToBlob(p.url), { code, big: bigUploads, name: `page-${i + 2}`, api });
+          const r = await sendImage(await urlToBlob(p.url), { code, big: bigUploads, mode: blobMode, name: `page-${i + 2}`, api });
           pages.push({ blob: r.sha, ext: r.ext, flickr: (p.flickr ?? '').trim() });
         } else pages.push({ keep: p.keep, flickr: (p.flickr ?? '').trim() });
       }
