@@ -26,22 +26,31 @@ interface Opts {
 export async function sendImage(data: Blob, { code, big, name, api }: Opts): Promise<{ sha: string; ext: Ext }> {
   const ext = extOf(data.type);
   if (big) {
-    if (data.size > BIG_LIMIT) throw new Error(`Image « ${name} » trop lourde (40 Mo au maximum).`);
-    const safe = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40) || 'image';
-    const r = await upload(`uploads/${safe}.${ext}`, data, {
-      access: 'private',
-      handleUploadUrl: '/api/upload',
-      headers: { 'x-admin-code': code },
-      contentType: data.type || 'image/jpeg',
-      multipart: data.size > 25 * 1024 * 1024, // découpage en morceaux seulement pour les très gros fichiers
-    });
-    const s = await api({ action: 'blob-from-store', url: r.url });
-    return { sha: s.sha, ext: s.ext };
+    try { return await sendBig(data, ext, { code, name, api }); }
+    catch (err) {
+      // Blob indisponible : on repasse par l'envoi classique si l'image y tient.
+      if (data.size * 1.34 > SMALL_LIMIT) throw err;
+      console.warn('Envoi par Vercel Blob impossible, envoi classique :', err);
+    }
   }
   const base64 = await toBase64(data);
   if (base64.length > SMALL_LIMIT) throw new Error(`Image « ${name} » trop lourde pour l’envoi (≈ 3 Mo au maximum sans Vercel Blob).`);
   const r = await api({ action: 'blob', base64 });
   return { sha: r.sha, ext };
+}
+
+async function sendBig(data: Blob, ext: Ext, { code, name, api }: Omit<Opts, 'big'>) {
+  if (data.size > BIG_LIMIT) throw new Error(`Image « ${name} » trop lourde (40 Mo au maximum).`);
+  const safe = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40) || 'image';
+  const r = await upload(`uploads/${safe}.${ext}`, data, {
+    access: 'private',
+    handleUploadUrl: '/api/upload',
+    headers: { 'x-admin-code': code },
+    contentType: data.type || 'image/jpeg',
+    multipart: data.size > 25 * 1024 * 1024, // découpage en morceaux seulement pour les très gros fichiers
+  });
+  const s = await api({ action: 'blob-from-store', url: r.url });
+  return { sha: s.sha as string, ext: s.ext as Ext };
 }
 
 /** Image d'une adresse data:… ou blob:… en objet Blob. */

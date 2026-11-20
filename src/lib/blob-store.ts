@@ -4,12 +4,14 @@
 import { del, get, list } from '@vercel/blob';
 import { HttpError } from './github';
 
-export const blobEnabled = () => !!process.env.BLOB_READ_WRITE_TOKEN;
+// Deux façons de relier l'espace au projet : clé fixe (BLOB_READ_WRITE_TOKEN) ou identifiants OIDC (BLOB_STORE_ID).
+export const blobEnabled = () => !!(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
 export const UPLOAD_PREFIX = 'uploads/';
 export const MAX_UPLOAD = 40 * 1024 * 1024; // 40 Mo par image
 
-/** Identifiant de l'espace, lu dans la clé (vercel_blob_rw_<store>_…). */
-const storeId = () => (process.env.BLOB_READ_WRITE_TOKEN ?? '').split('_')[3]?.toLowerCase() ?? '';
+/** Identifiant de l'espace : BLOB_STORE_ID (OIDC) ou lu dans la clé (vercel_blob_rw_<store>_…). */
+const storeId = () =>
+  (process.env.BLOB_STORE_ID?.replace(/^store_/, '') || (process.env.BLOB_READ_WRITE_TOKEN ?? '').split('_')[3] || '').toLowerCase();
 
 /** L'adresse doit désigner un fichier uploads/ de NOTRE espace privé. */
 function checkUrl(raw: unknown): URL {
