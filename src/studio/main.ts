@@ -295,20 +295,28 @@ async function createBook(blobs: Blob[], name: string, folder: string | null = n
   await openProject(made[open] ?? made[0]);
 }
 
+/** Images et PDF (un ou plusieurs, mélangés) → une image par page, dans l'ordre donné. */
+async function expandFiles(files: File[]): Promise<Blob[]> {
+  const out: Blob[] = [];
+  for (const f of files) {
+    if (isPdf(f)) {
+      setBusy('Lecture du PDF…');
+      const imgs = await pdfToImages(f, (i, n) => setBusy(`Lecture de « ${f.name} » : page ${i} sur ${n}…`));
+      if (!imgs.length) throw new Error(`« ${f.name} » n’a aucune page.`);
+      out.push(...imgs);
+    } else if (!f.type || /^image\//.test(f.type)) out.push(f);
+    else throw new Error(`« ${f.name} » n’est ni une image ni un PDF.`);
+    if (out.length > MAX_PAGES) throw new Error(`${MAX_PAGES} pages au maximum par dessin.`);
+  }
+  return out;
+}
+
 /** Import : une image → un dessin ; un PDF ou plusieurs images → un dessin à pages. */
 async function importFiles(files: File[]) {
   if (!files.length) return;
+  files = [...files].sort(byName); // page-2 avant page-10
   try {
-    const pdfs = files.filter(isPdf);
-    if (pdfs.length > 1 || (pdfs.length && files.length > 1)) throw new Error('Importe un seul PDF à la fois (ou seulement des images).');
-    let blobs: Blob[] = files;
-    if (pdfs.length) {
-      setBusy('Lecture du PDF…');
-      blobs = await pdfToImages(pdfs[0], (i, n) => setBusy(`Lecture du PDF : page ${i} sur ${n}…`));
-      if (!blobs.length) throw new Error('Ce PDF n’a aucune page.');
-    } else if (files.some((f) => f.type && !/^image\//.test(f.type))) {
-      throw new Error('Choisis des images ou un PDF.');
-    }
+    const blobs = await expandFiles(files);
     const name = files.length === 1 ? files[0].name.replace(/\.[^.]+$/, '') || 'Sans titre' : `Dessin à ${files.length} pages`;
     if (blobs.length === 1) await createFromBlob(blobs[0], name);
     else await createBook(blobs, name);
@@ -317,6 +325,16 @@ async function importFiles(files: File[]) {
 }
 
 // ————— Pages d'un dessin —————
+// Fond nettoyé / original : le même pour toutes les pages d'un dessin.
+editor.onBackground = async (bg) => {
+  if (!current?.book) return;
+  for (const p of await bookPages(current.book.id)) {
+    if (p.id === current.id || (p.doc as Doc).background === bg) continue;
+    p.doc = { ...(p.doc as Doc), background: bg };
+    await putProject(p);
+  }
+};
+const byName = (a: File, b: File) => a.name.localeCompare(b.name, 'fr', { numeric: true });
 const pageBar = $('[data-pagebar]');
 const pageSel = $<HTMLSelectElement>('[data-page-select]');
 let pages: ProjectRecord[] = [];
@@ -324,6 +342,8 @@ async function renderPageBar() {
   pages = current?.book ? await bookPages(current.book.id) : [];
   pageBar.hidden = !current;
   const i = pages.findIndex((p) => p.id === current?.id);
+  const count = Math.max(1, pages.length);
+  if (panel.pageCount !== count) { panel.pageCount = count; panel.render(); }
   pageSel.replaceChildren(...pages.map((p, k) => new Option(`Page ${k + 1} / ${pages.length}`, p.id)));
   if (!pages.length) pageSel.append(new Option('Page unique', ''));
   pageSel.value = current?.id && pages.length ? current.id : '';
@@ -348,11 +368,7 @@ $<HTMLInputElement>('[data-page-add]').addEventListener('change', async (e) => {
   if (!current || !files.length) return;
   try {
     await saveNow();
-    let blobs: Blob[] = files;
-    if (files.some(isPdf)) {
-      if (files.length > 1) throw new Error('Ajoute un seul PDF à la fois.');
-      blobs = await pdfToImages(files[0], (i, n) => setBusy(`Lecture du PDF : page ${i} sur ${n}…`));
-    }
+    const blobs = await expandFiles(files.sort(byName));
     // Un dessin d'une seule page devient un dessin à pages.
     if (!current.book) { current.book = { id: uid(), index: 0 }; await putProject(current); }
     const all = await bookPages(current.book.id);

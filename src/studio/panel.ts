@@ -48,6 +48,8 @@ function number(value: number, min: number, max: number, step: number, onSet: (v
 export class Panel {
   tab: 'props' | 'layers' = 'layers';
   textArea: HTMLTextAreaElement | null = null;
+  /** Nombre de pages du dessin ouvert (le fond nettoyé / original vaut pour toutes). */
+  pageCount = 1;
 
   constructor(private root: El, private ed: Editor, private onTab: (t: 'props' | 'layers') => void) {}
 
@@ -218,7 +220,7 @@ export class Panel {
           h('span', { class: 'count' }, `${d.width} × ${d.height}`),
           h('button', { type: 'button', class: 'mini', onclick: () => { ed.setLayer('drawing', { visible: !draw.visible }); this.render(); } }, draw.visible ? 'Visible' : 'Masqué')),
         field('Fond de l’image finale', segmented(d.background, [['clean', 'Nettoyé'], ['original', 'Original']], (v) => { ed.setBackground(v); this.render(); })),
-        h('p', { class: 'hint' }, 'Le fichier importé n’est jamais modifié : le nettoyage et les textes sont appliqués seulement à l’image finale.')),
+        h('p', { class: 'hint' }, (this.pageCount > 1 ? `Ce choix vaut pour les ${this.pageCount} pages du dessin. ` : '') + 'Le fichier importé n’est jamais modifié : le nettoyage et les textes sont appliqués seulement à l’image finale.')),
     );
   }
 }

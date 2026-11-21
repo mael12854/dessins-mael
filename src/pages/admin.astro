@@ -97,16 +97,18 @@ const specs = await Promise.all(
         <legend class="label">Planche</legend>
         <div class="imgfield" data-img="planche">
           <img alt="" hidden />
-          <label class="btn ghost file"><input type="file" accept="image/*" hidden /> Choisir le scan</label>
+          <label class="btn ghost file"><input type="file" accept="image/*,application/pdf,.pdf" multiple hidden data-planche-input /> Choisir le scan</label>
           <button class="btn ghost" type="button" data-remove hidden>Enlever l’image</button>
           <a class="btn ghost" data-studio-link hidden>Retoucher dans le Studio</a>
         </div>
+        <label class="check"><input type="checkbox" name="clean" checked /> Nettoyer le fond (papier blanc, traits renforcés), sur toutes les pages</label>
+        <p class="hint-sm">Plusieurs images ou un PDF choisis ensemble : la première page devient la planche, les autres les pages suivantes.</p>
         <label class="field"><span class="field-label">Lien Flickr de la planche <em>(facultatif : « voir en grand sur Flickr » sous l’image)</em></span><input name="flickr" type="url" inputmode="url" maxlength="300" placeholder="flickr.com/photos/specimens/…" /></label>
         <div class="pages-field">
           <span class="field-label">Pages suivantes <em>(dessin à plusieurs pages : la planche ci-dessus est la page 1)</em></span>
           <ol class="pages-list" data-pages-list></ol>
           <div class="row">
-            <label class="btn ghost file"><input type="file" accept="image/*" multiple hidden data-pages-add /> + Ajouter des pages</label>
+            <label class="btn ghost file"><input type="file" accept="image/*,application/pdf,.pdf" multiple hidden data-pages-add /> + Ajouter des pages</label>
           </div>
         </div>
         <label class="field"><span class="field-label">Texte affiché sous la planche <em>(facultatif)</em></span><textarea name="texte" rows="5" maxlength="4000" placeholder="Quelques mots sur ce spécimen…"></textarea></label>
@@ -161,6 +163,7 @@ const specs = await Promise.all(
   .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .field-label { font-family: var(--font-label); font-size: 12px; letter-spacing: .04em; color: var(--ink-2); }
   .field-label em { font-style: normal; opacity: .8; }
+  .hint-sm { margin: -4px 0 0; font-size: 13px; opacity: .75; }
   input:not([type='checkbox']):not([type='file']), select, textarea {
     font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1.5px solid var(--ink);
     border-radius: 4px; padding: 9px 10px; width: 100%; min-height: 44px;
@@ -243,6 +246,9 @@ const specs = await Promise.all(
     _status?: string;
   };
   const IMG_KEYS = ['planche', 'signature', 'espece'] as const;
+  /** Image prête à l'envoi ; `src` = fichier choisi, gardé pour refaire le nettoyage si on change d'avis. */
+  type Shrunk = { base64: string; ext: string; url: string; src?: Blob };
+  const MAX_EXTRA = 29; // pages suivantes (30 pages en tout)
   type ImgKey = (typeof IMG_KEYS)[number];
 
   const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
@@ -348,12 +354,12 @@ const specs = await Promise.all(
 
   // — Formulaire —
   let editing: Spec | null = null;
-  let newImg: Partial<Record<ImgKey, { base64: string; ext: string; url: string }>> = {};
+  let newImg: Partial<Record<ImgKey, Shrunk>> = {};
   let removeImg: Partial<Record<ImgKey, boolean>> = {};
   let annots: Annot[] = [];
   let placing = -1;
   // Pages suivantes : { keep: i } = i-ème page publiée, sinon nouvelle image.
-  type PageItem = ({ keep: number; url: string | null } | { base64: string; ext: string; url: string }) & { flickr?: string };
+  type PageItem = ({ keep: number; url: string | null } | Shrunk) & { flickr?: string };
   let pageList: PageItem[] = [];
   function renderPages() {
     const ol = $('[data-pages-list]'); ol.innerHTML = '';
@@ -379,10 +385,30 @@ const specs = await Promise.all(
   $<HTMLInputElement>('[data-pages-add]').addEventListener('change', async (e) => {
     const input = e.target as HTMLInputElement;
     const files = [...(input.files ?? [])]; input.value = '';
-    try { for (const f of files) pageList.push(await shrink(f, 'planche')); }
-    catch { setMsg($('[data-form-msg]'), 'Impossible de lire une des images.'); }
+    try { await addPages(await expandFiles(files)); }
+    catch (err) { setMsg($('[data-form-msg]'), (err as Error).message || 'Impossible de lire une des images.'); }
     renderPages();
   });
+  /** Fichiers choisis → images, dans l'ordre des noms (page-2 avant page-10) ; un PDF donne une image par page. */
+  async function expandFiles(files: File[]): Promise<Blob[]> {
+    const { isPdf, pdfToImages } = await import('../studio/pdf');
+    files.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true }));
+    const out: Blob[] = [];
+    for (const f of files) {
+      if (isPdf(f)) {
+        const msg = $('[data-form-msg]');
+        out.push(...(await pdfToImages(f, (i, n) => setMsg(msg, `Lecture du PDF : page ${i} sur ${n}…`, true))));
+        setMsg(msg, '');
+      } else if (!f.type || /^image\//.test(f.type)) out.push(f);
+      else throw new Error(`« ${f.name} » n’est ni une image ni un PDF.`);
+    }
+    if (!out.length) throw new Error('Aucune page trouvée.');
+    return out;
+  }
+  async function addPages(blobs: Blob[]) {
+    if (pageList.length + blobs.length > MAX_EXTRA) throw new Error(`${MAX_EXTRA + 1} pages au maximum par spécimen (planche comprise).`);
+    for (const b of blobs) pageList.push(await shrink(b, 'planche'));
+  }
   const F = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
   const toIso = (d: string) => (/^\d{2}\.\d{2}\.\d{4}$/.test(d) ? d.split('.').reverse().join('-') : '');
   const fromIso = (d: string) => (d ? d.split('-').reverse().join('.') : '');
@@ -446,7 +472,7 @@ const specs = await Promise.all(
   }
 
   // Réduit l'image dans le navigateur avant l'envoi (≤ 2400 px, JPEG ; PNG pour la signature).
-  async function shrink(file: File, k: ImgKey) {
+  async function shrink(file: Blob, k: ImgKey): Promise<Shrunk> {
     // Avec Vercel Blob : qualité impression (3508 px, A4 à 300 ppp) ; sinon réduite pour tenir dans ≈ 3 Mo.
     const max = k === 'signature' ? 600 : bigUploads ? 3508 : 2400;
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
@@ -457,22 +483,40 @@ const specs = await Promise.all(
     const png = k === 'signature';
     if (!png) { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height); }
     ctx.drawImage(bmp, 0, 0, c.width, c.height);
-    cleanCanvas(ctx, c.width, c.height, png);
+    // La signature est toujours nettoyée (fond transparent) ; le reste selon la case « Nettoyer le fond ».
+    if (png || F('clean').checked) cleanCanvas(ctx, c.width, c.height, png);
     const type = png ? 'image/png' : 'image/jpeg';
     const url = c.toDataURL(type, bigUploads ? 0.92 : 0.88);
-    return { base64: url.split(',')[1], ext: png ? 'png' : 'jpg', url };
+    return { base64: url.split(',')[1], ext: png ? 'png' : 'jpg', url, src: file };
   }
   for (const k of IMG_KEYS) {
     const box = $(`[data-img=${k}]`);
     $<HTMLInputElement>('input[type=file]', box).addEventListener('change', async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      try { newImg[k] = await shrink(file, k); removeImg[k] = false; renderImg(k); }
-      catch { setMsg($('[data-form-msg]'), 'Impossible de lire cette image.'); }
-      (e.target as HTMLInputElement).value = '';
+      const input = e.target as HTMLInputElement;
+      const files = [...(input.files ?? [])]; input.value = '';
+      if (!files.length) return;
+      try {
+        if (k === 'planche') {
+          // Plusieurs images ou un PDF : page 1 = planche, les autres à la suite des pages suivantes.
+          const [first, ...rest] = await expandFiles(files);
+          newImg[k] = await shrink(first, k); removeImg[k] = false; renderImg(k);
+          if (rest.length) { await addPages(rest); renderPages(); }
+        } else { newImg[k] = await shrink(files[0], k); removeImg[k] = false; renderImg(k); }
+      } catch (err) { setMsg($('[data-form-msg]'), (err as Error).message || 'Impossible de lire cette image.'); }
     });
     $('[data-remove]', box).addEventListener('click', () => { delete newImg[k]; removeImg[k] = true; renderImg(k); });
   }
+
+  // Case « Nettoyer le fond » : refait les images choisies ici (pas celles du Studio, déjà réglées là-bas).
+  F('clean').addEventListener('change', async () => {
+    const msg = $('[data-form-msg]');
+    setMsg(msg, 'Nouvelle préparation des images…', true);
+    try {
+      for (const k of ['planche', 'espece'] as const) { const x = newImg[k]; if (x?.src) { newImg[k] = await shrink(x.src, k); renderImg(k); } }
+      for (let i = 0; i < pageList.length; i++) { const p = pageList[i]; if ('src' in p && p.src) pageList[i] = { ...(await shrink(p.src, 'planche')), flickr: p.flickr }; }
+      renderPages(); setMsg(msg, '');
+    } catch { setMsg(msg, 'Impossible de relire une des images.'); }
+  });
 
   // — Annotations —
   function renderAnnots() {

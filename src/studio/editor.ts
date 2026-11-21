@@ -592,9 +592,12 @@ export class Editor {
     this.commit();
   }
 
+  /** Appelé quand on change le fond (le Studio l'applique aux autres pages du dessin). */
+  onBackground?: (bg: 'clean' | 'original') => void;
   setBackground(bg: 'clean' | 'original') {
     this.doc.background = bg;
     this.commit();
+    this.onBackground?.(bg);
     if (this.view !== 'compare') this.setView(bg);
     else this.refreshStrokes();
   }
