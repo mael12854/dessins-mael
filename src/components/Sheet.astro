@@ -16,7 +16,7 @@ interface Props {
 }
 const { image, alt = '', ratio = 'a4', thumb = false, flat = false, eager = false, sizes = '(min-width: 560px) 560px, 100vw', class: cls } = Astro.props;
 ---
-<div class:list={['sheet', ratio === 'auto' ? (image ? 'auto' : 'a4') : ratio, { thumb, flat, hatch: !image }, cls]} style={ratio === 'auto' && image ? `aspect-ratio: ${image.width} / ${image.height}` : undefined}>
+<div class:list={['sheet', ratio === 'auto' ? (image ? 'auto' : 'a4') : ratio, { thumb, flat, hatch: !image }, cls]} style={ratio === 'auto' && image ? `aspect-ratio: ${image.width} / ${image.height}; --ar: ${(image.width / image.height).toFixed(4)}` : undefined}>
   {image && <span class="loading" aria-hidden="true">Mise sous verre…</span>}
   {image && (
     <Image

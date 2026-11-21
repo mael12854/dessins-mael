@@ -18,27 +18,18 @@ export async function getStaticPaths() {
 const { s, prev, next } = Astro.props;
 const extra = s.pending ? [] : (s.pages ?? []);
 const total = 1 + extra.length;
+// Proportion du dessin : sur ordinateur, la page tient entière dans la hauteur de l'écran.
+const ar = (im?: { width: number; height: number }) => (im ? `--ar: ${(im.width / im.height).toFixed(4)}` : undefined);
+const SIZES = '(min-width: 960px) 760px, (min-width: 560px) 560px, 100vw';
 ---
 <Base title={`Spécimen n°${s.n} — ${s.title}`} description={`${s.title} : spécimen n°${s.n} de la série « ${seriesLabel(s.series)} », dessiné ${s.tech === 'numerique' ? 'sur ordinateur' : 'au feutre noir'}. Observé ${s.pending ? 'en ce moment' : `le ${s.date}`}, ${s.lieu}.`}>
-  <section style="display:flex;flex-direction:column;gap:16px;padding-top:26px;">
-    <div class="pad" style="display:flex;flex-direction:column;align-items:flex-start;">
-      <div class="cartouche">
-        <svg width="100%" height="20" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true"><path d="M50 2 L3 20 M50 2 L97 20" fill="none" stroke="currentColor" stroke-width="1.2" vector-effect="non-scaling-stroke"></path></svg>
-        <div class="hand cartouche-box">{seriesLabel(s.series)}</div>
-      </div>
-    </div>
-
-    <div class="pad" style="display:flex;flex-direction:column;gap:6px;padding-top:4px;">
-      <span class="label red" style="font-size:13px;letter-spacing:.06em;">Spécimen n°{s.n}</span>
-      <h1 class="hand title">{s.title}</h1>
-      <span class="meta">obs. le {s.date} · {s.lieu}</span>
-    </div>
-
+  <section class="spec">
+    <div class="spec-sheets">
     {s.pending ? (
       <div style="padding:14px 0;"><PendingTag n={s.n} /></div>
     ) : (
-      <figure style="margin:0;display:flex;flex-direction:column;gap:8px;">
-        <Sheet image={s.image} alt={altFor(s)} ratio="auto" eager />
+      <figure class="spec-fig" style={ar(s.image)}>
+        <Sheet image={s.image} alt={altFor(s)} ratio="auto" eager sizes={SIZES} />
         <figcaption class="pad" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
           <span class="caption">planche n°{pad(s.n)}{total > 1 && ` — page 1 sur ${total}`} — {TECH[s.tech]}</span>
           {s.signature ? (
@@ -52,13 +43,29 @@ const total = 1 + extra.length;
     )}
 
     {extra.map((p, i) => (
-      <figure style="margin:0;display:flex;flex-direction:column;gap:8px;">
-        <Sheet image={p.image} alt={p.alt || `${altFor(s)} — page ${i + 2} sur ${total}`} ratio="auto" />
+      <figure class="spec-fig" style={ar(p.image)}>
+        <Sheet image={p.image} alt={p.alt || `${altFor(s)} — page ${i + 2} sur ${total}`} ratio="auto" sizes={SIZES} />
         <figcaption class="pad"><span class="caption">planche n°{pad(s.n)} — page {i + 2} sur {total}</span></figcaption>
         {p.flickr && <div class="pad"><FlickrLink href={p.flickr} /></div>}
       </figure>
     ))}
+    </div>
+    <aside class="spec-side">
+      <div class="spec-head">
+    <div class="pad" style="display:flex;flex-direction:column;align-items:flex-start;">
+      <div class="cartouche">
+        <svg width="100%" height="20" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true"><path d="M50 2 L3 20 M50 2 L97 20" fill="none" stroke="currentColor" stroke-width="1.2" vector-effect="non-scaling-stroke"></path></svg>
+        <div class="hand cartouche-box">{seriesLabel(s.series)}</div>
+      </div>
+    </div>
 
+    <div class="pad" style="display:flex;flex-direction:column;gap:6px;padding-top:4px;">
+      <span class="label red" style="font-size:13px;letter-spacing:.06em;">Spécimen n°{s.n}</span>
+      <h1 class="hand title">{s.title}</h1>
+      <span class="meta">obs. le {s.date} · {s.lieu}</span>
+    </div>
+      </div>
+      <div class="spec-info">
     <Texte text={s.texte} class="pad" />
 
     {hasFiche(s) && (
@@ -85,5 +92,17 @@ const total = 1 + extra.length;
         <div class="pn next end">dernier spécimen observé</div>
       )}
     </nav>
+        <p class="caption keys-hint">← → pour passer d’un spécimen à l’autre</p>
+      </div>
+    </aside>
   </section>
+  <script is:inline>
+    // Ordinateur : flèches du clavier pour passer au spécimen précédent / suivant.
+    document.addEventListener('keydown', function (e) {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      var t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      var a = document.querySelector(e.key === 'ArrowLeft' ? 'a[rel=prev]' : e.key === 'ArrowRight' ? 'a[rel=next]' : null);
+      if (a) location.href = a.href;
+    });
+  </script>
 </Base>

@@ -8,7 +8,7 @@ const count = (k: number) => `${k} spécimen${k > 1 ? 's' : ''} sous verre`;
 const chips = [['all', 'tout'], ...SERIES_LIST.map((x) => [x.id, x.label])];
 ---
 <Base title="La collection" active="collection">
-  <section class="pad" style="display:flex;flex-direction:column;gap:18px;padding-top:26px;">
+  <section class="pad coll-page">
     <div style="position:relative;display:flex;flex-direction:column;gap:4px;">
       <h1 class="hand display">La collection</h1>
       <span class="meta" data-count aria-live="polite">{count(byNew.length)}</span>

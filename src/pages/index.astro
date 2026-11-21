@@ -24,20 +24,20 @@ const noImages = !byNew.some((s) => s.image && !s.pending);
       <SpecimenList list={byNew} />
     </section>
   ) : latest ? (
-    <section style="display:flex;flex-direction:column;gap:12px;padding-top:22px;">
-      <div class="pad" style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;">
+    <section class="latest">
+      <div class="pad latest-head">
         <span class="label">Dernière observation</span>
         <span class="meta" style="letter-spacing:.06em;color:var(--red);">N° {pad(latest.n)}</span>
       </div>
       {latest.pending ? (
         <PendingTag n={latest.n} note />
       ) : (
-        <a href={plancheUrl(latest.n)} style="display:flex;flex-direction:column;">
-          <Sheet image={latest.image} alt={altFor(latest)} ratio="auto" eager />
+        <a href={plancheUrl(latest.n)} class="latest-sheet" style={latest.image ? `--ar: ${(latest.image.width / latest.image.height).toFixed(4)}` : undefined}>
+          <Sheet image={latest.image} alt={altFor(latest)} ratio="auto" eager sizes="(min-width: 960px) 680px, (min-width: 560px) 560px, 100vw" />
           <span class="caption pad" style="padding-top:8px;">planche n°{pad(latest.n)} — {TECH[latest.tech]}</span>
         </a>
       )}
-      <div class="pad" style="display:flex;flex-direction:column;gap:8px;padding-top:10px;">
+      <div class="pad latest-info">
         <h1 class="hand title">{latest.title}</h1>
         <span class="meta">{seriesLabel(latest.series)} · obs. le {latest.date} · {latest.lieu}</span>
         <Texte text={latest.texte} />
@@ -58,7 +58,7 @@ const noImages = !byNew.some((s) => s.image && !s.pending);
   {!noImages && recent.length > 0 && (
     <section class="pad" style="display:flex;flex-direction:column;gap:14px;padding-top:44px;">
       <h2 class="label" style="margin:0;font-weight:400;">Observés récemment</h2>
-      <div class="grid">
+      <div class="grid recent">
         {recent.map((s) => <Card s={s} variant="recent" />)}
       </div>
     </section>
