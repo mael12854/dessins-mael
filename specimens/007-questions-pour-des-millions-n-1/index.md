@@ -1,6 +1,6 @@
 ---
 n: 7
-series: metro
+series: questions-pour-des-millions
 tech: mixte
 title: "Questions pour des millions n° 1"
 date: "21.11.2026"
