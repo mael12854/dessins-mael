@@ -582,10 +582,27 @@ $('[data-publish]').addEventListener('click', async () => {
     slotSel.disabled = preparedPages.length > 0; // un dessin à pages se publie comme planche
     destSel.value = current.folder && specs.some((s) => s.folder === current!.folder) ? current.folder : '';
     slotSel.value = preparedPages.length ? 'planche' : current.slot ?? 'planche';
+    try { const q = localStorage.getItem(LS_Q); qualitySel.value = q === 'light' ? 'light' : 'full'; } catch {}
+    syncQuality();
     dlg.showModal();
   } catch (err) { alert((err as Error).message); }
   finally { setBusy(null); }
 });
+// Qualité publiée : même réglage que dans l'admin (retenu dans ce navigateur), appliqué à l'envoi.
+const qualitySel = $<HTMLSelectElement>('[data-quality]');
+const LS_Q = 'admin-quality';
+function syncQuality() {
+  const note = $('[data-quality-note]');
+  const light = qualitySel.value === 'light';
+  note.hidden = !light;
+  if (light && prepared) {
+    const { width: w, height: h } = prepared.canvas;
+    const k = Math.min(1, 1600 / Math.max(w, h));
+    note.textContent = `Publiée allégée : ${Math.round(w * k)} × ${Math.round(h * k)} px, JPEG 80 %${preparedPages.length ? ', pour chaque page' : ''}. Pense aux liens Flickr dans l’admin pour la pleine qualité.`;
+  }
+  try { localStorage.setItem(LS_Q, qualitySel.value); } catch {}
+}
+qualitySel.addEventListener('change', syncQuality);
 $('[data-dialog-close]').addEventListener('click', () => dlg.close());
 $('[data-dialog-download]').addEventListener('click', () => $<HTMLButtonElement>('[data-download]').click());
 $('[data-send]').addEventListener('click', async () => {
@@ -601,6 +618,7 @@ $('[data-send]').addEventListener('click', async () => {
       projectId: current.id, base64: await blobToBase64(prepared.blob), ext: prepared.ext,
       width: prepared.canvas.width, height: prepared.canvas.height,
       slot: current.slot, folder: current.folder, createdAt: Date.now(),
+      quality: qualitySel.value === 'light' ? 'light' : 'full',
       pages: await Promise.all(preparedPages.map(async (p): Promise<HandoffPage> => ({
         base64: await blobToBase64(p.blob), ext: p.ext, width: p.canvas.width, height: p.canvas.height,
       }))),

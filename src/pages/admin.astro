@@ -309,6 +309,7 @@ const specs = await Promise.all(
     removeImg[h.slot] = false;
     if (h.slot === 'espece') { F('hasFiche').checked = true; sync(); }
     renderImg(h.slot);
+    if (h.quality) { F('quality').value = h.quality; syncQuality(); }
     if (h.pages?.length) {
       // Dessin à pages : les pages du Studio remplacent les pages suivantes du spécimen.
       pageList = h.pages.map((p) => ({ base64: p.base64, ext: p.ext, url: `data:${p.ext === 'png' ? 'image/png' : p.ext === 'webp' ? 'image/webp' : 'image/jpeg'};base64,${p.base64}` }));

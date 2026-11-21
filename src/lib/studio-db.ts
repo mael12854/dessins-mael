@@ -37,6 +37,8 @@ export interface Handoff {
   createdAt: number;
   /** Pages suivantes (la page 1 est l'image ci-dessus). */
   pages?: HandoffPage[];
+  /** Qualité publiée choisie dans le Studio (« light » : allégée par l'admin à l'envoi). */
+  quality?: 'full' | 'light';
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;

@@ -140,6 +140,13 @@ const tools = [
             <select data-slot><option value="planche">Planche</option><option value="espece">Dessin de la fiche espèce</option></select>
           </label>
         </div>
+        <label class="f"><span class="f-label">Qualité publiée sur le site</span>
+          <select data-quality>
+            <option value="full">Bonne (pleine taille)</option>
+            <option value="light">Allégée (un peu en dessous, plus légère ; la pleine qualité sur Flickr)</option>
+          </select>
+        </label>
+        <p class="meta" data-quality-note hidden></p>
         <p class="hint">L’image est ajoutée au formulaire de l’admin. Tu vérifies les informations, puis « Enregistrer » la publie. Rien n’est envoyé avant.</p>
         <div class="row">
           <button type="button" class="btn" data-send>Continuer vers la publication</button>
