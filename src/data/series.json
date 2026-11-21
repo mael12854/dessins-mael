@@ -18,5 +18,10 @@
     "id": "a-la-maison",
     "label": "À la maison 🏢",
     "fiche": true
+  },
+  {
+    "id": "questions-pour-des-millions",
+    "label": "Questions pour des millions 🏆",
+    "fiche": true
   }
 ]
