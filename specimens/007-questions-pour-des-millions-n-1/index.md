@@ -6,8 +6,10 @@ title: "Questions pour des millions n° 1"
 date: "21.11.2026"
 lieu: "Studio de tournage"
 image: ./planche.jpg
+flickr: "https://www.flickr.com/photos/specimens/55664259417/"
 pages:
   - image: ./page-2.jpg
+    flickr: "https://www.flickr.com/photos/specimens/55665428984/"
 signature: ./signature.png
 fiche:
   habitat: "Chez lui"
