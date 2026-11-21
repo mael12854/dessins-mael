@@ -8,6 +8,7 @@ lieu: "Studio de tournage"
 image: ./planche.jpg
 pages:
   - image: ./page-2.jpg
+signature: ./signature.png
 fiche:
   habitat: "Chez lui"
   cri: "\"Salut !\""
