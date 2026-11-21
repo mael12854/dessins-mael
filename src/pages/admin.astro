@@ -102,6 +102,13 @@ const specs = await Promise.all(
           <a class="btn ghost" data-studio-link hidden>Retoucher dans le Studio</a>
         </div>
         <label class="check"><input type="checkbox" name="clean" checked /> Nettoyer le fond (papier blanc, traits renforcés), sur toutes les pages</label>
+        <label class="field"><span class="field-label">Qualité publiée sur le site</span>
+          <select name="quality">
+            <option value="full">Bonne (pleine taille)</option>
+            <option value="light">Allégée (un peu en dessous, plus légère ; la pleine qualité sur Flickr)</option>
+          </select>
+        </label>
+        <p class="hint-sm" data-light-hint hidden>Pense à mettre les liens Flickr : sous chaque image, « voir en grand sur Flickr » mène à la pleine qualité.</p>
         <p class="hint-sm">Plusieurs images ou un PDF choisis ensemble : la première page devient la planche, les autres les pages suivantes.</p>
         <label class="field"><span class="field-label">Lien Flickr de la planche <em>(facultatif : « voir en grand sur Flickr » sous l’image)</em></span><input name="flickr" type="url" inputmode="url" maxlength="300" placeholder="flickr.com/photos/specimens/…" /></label>
         <div class="pages-field">
@@ -438,6 +445,8 @@ const specs = await Promise.all(
     for (const k of IMG_KEYS) renderImg(k);
     pageList = (s?.pages ?? []).map((p, i) => ({ keep: i, url: p.url, flickr: p.flickr }));
     renderPages();
+    try { const q = localStorage.getItem(LS_Q); if (q === 'light' || q === 'full') F('quality').value = q; } catch {}
+    syncQuality();
     $('[data-delete]').hidden = !s;
     sync(); renderAnnots(); show('form');
   }
@@ -506,6 +515,31 @@ const specs = await Promise.all(
     });
     $('[data-remove]', box).addEventListener('click', () => { delete newImg[k]; removeImg[k] = true; renderImg(k); });
   }
+
+  // Qualité allégée : 1600 px au plus grand côté, JPEG 80 % (le site affiche jusqu'à 1800 px).
+  const LIGHT_MAX = 1600, LIGHT_Q = 0.8;
+  async function lighten(blob: Blob): Promise<Blob> {
+    const bmp = await createImageBitmap(blob);
+    const k = Math.min(1, LIGHT_MAX / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bmp, 0, 0, c.width, c.height); bmp.close?.();
+    const out = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', LIGHT_Q));
+    if (!out) throw new Error('Impossible de préparer l’image allégée.');
+    return out;
+  }
+  const isLight = () => F('quality').value === 'light';
+  // Image à envoyer : la signature reste telle quelle (PNG transparent, déjà petite).
+  const toSend = async (url: string, k: ImgKey) => { const b = await urlToBlob(url); return isLight() && k !== 'signature' ? lighten(b) : b; };
+  const LS_Q = 'admin-quality';
+  function syncQuality() {
+    $('[data-light-hint]').hidden = !isLight();
+    try { localStorage.setItem(LS_Q, F('quality').value); } catch {}
+  }
+  F('quality').addEventListener('change', syncQuality);
 
   // Case « Nettoyer le fond » : refait les images choisies ici (pas celles du Studio, déjà réglées là-bas).
   F('clean').addEventListener('change', async () => {
@@ -586,7 +620,7 @@ const specs = await Promise.all(
       for (const k of IMG_KEYS) {
         if (newImg[k]) {
           setMsg(msg, `Envoi de l’image « ${k} »…`, true);
-          const r = await sendImage(await urlToBlob(newImg[k]!.url), { code, big: bigUploads, mode: blobMode, name: k, api });
+          const r = await sendImage(await toSend(newImg[k]!.url, k), { code, big: bigUploads, mode: blobMode, name: k, api });
           images[k] = { blob: r.sha, ext: r.ext };
         } else if (removeImg[k]) images[k] = { remove: true };
       }
@@ -595,7 +629,7 @@ const specs = await Promise.all(
         const p = pageList[i];
         if ('base64' in p) {
           setMsg(msg, `Envoi de la page ${i + 2} sur ${pageList.length + 1}…`, true);
-          const r = await sendImage(await urlToBlob(p.url), { code, big: bigUploads, mode: blobMode, name: `page-${i + 2}`, api });
+          const r = await sendImage(await toSend(p.url, 'planche'), { code, big: bigUploads, mode: blobMode, name: `page-${i + 2}`, api });
           pages.push({ blob: r.sha, ext: r.ext, flickr: (p.flickr ?? '').trim() });
         } else pages.push({ keep: p.keep, flickr: (p.flickr ?? '').trim() });
       }
